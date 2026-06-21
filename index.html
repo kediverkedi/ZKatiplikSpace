@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KATİP·TYPE — Katiplik Sınavı Yazma Talimi</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --void: #060914;
+    --void-2: #0b1224;
+    --ink: #d7e3ff;
+    --dim: #5d6b94;
+    --plasma: #34f5c5;
+    --plasma-dim: #1c6f5c;
+    --amber: #ffb347;
+    --hostile: #ff4d6d;
+    --steel: #8aa0d4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--void);
+    color: var(--ink);
+    font-family: 'Chakra Petch', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #stage {
+    position: fixed; inset: 0; overflow: hidden;
+    background:
+      radial-gradient(ellipse 120% 80% at 50% -20%, rgba(52,245,197,0.06), transparent 60%),
+      linear-gradient(var(--void-2), var(--void));
+  }
+  canvas { position: absolute; inset: 0; display: block; }
+
+  .hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 18px 24px; z-index: 20; pointer-events: none;
+  }
+  .hud-block { display: flex; flex-direction: column; gap: 2px; }
+  .hud-block.right { align-items: flex-end; }
+  .hud-label {
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 0.28em; text-transform: uppercase; color: var(--dim);
+  }
+  .hud-value {
+    font-family: 'Space Mono', monospace; font-size: 26px; font-weight: 700;
+    line-height: 1; color: var(--ink);
+  }
+  .hud-value.accent { color: var(--plasma); }
+  .hud-value.warn { color: var(--hostile); }
+  .hud-row { display: flex; gap: 28px; }
+
+  .meter {
+    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    width: min(360px, 76vw); text-align: center; z-index: 20; pointer-events: none;
+  }
+  .meter-track {
+    height: 3px; background: rgba(138,160,212,0.12); border-radius: 2px;
+    overflow: hidden; margin-top: 6px;
+  }
+  .meter-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--plasma-dim), var(--plasma));
+    transition: width 0.25s ease;
+  }
+  .meter-label {
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 0.3em; text-transform: uppercase; color: var(--dim);
+  }
+
+  .screen {
+    position: absolute; inset: 0; z-index: 40;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; overflow-y: auto;
+    background: radial-gradient(ellipse at center, rgba(6,9,20,0.82), rgba(6,9,20,0.96));
+    backdrop-filter: blur(3px);
+  }
+  .screen.hidden { display: none; }
+
+  .brand {
+    font-weight: 700; font-size: clamp(40px, 9vw, 84px);
+    letter-spacing: 0.04em; line-height: 0.95; text-transform: uppercase;
+  }
+  .brand .dot { color: var(--plasma); }
+  .brand-sub {
+    font-family: 'Space Mono', monospace; font-size: 12px;
+    letter-spacing: 0.4em; text-transform: uppercase; color: var(--steel); margin-top: 14px;
+  }
+
+  .panel {
+    margin-top: 30px; width: min(460px, 92vw);
+    border: 1px solid rgba(52,245,197,0.18); background: rgba(11,18,36,0.6);
+    border-radius: 14px; padding: 22px; text-align: left;
+  }
+  .panel h2 {
+    font-family: 'Space Mono', monospace; font-size: 11px;
+    letter-spacing: 0.3em; text-transform: uppercase; color: var(--plasma); margin-bottom: 14px;
+  }
+  .src-status {
+    font-family: 'Space Mono', monospace; font-size: 13px; color: var(--dim); margin-bottom: 16px;
+  }
+  .src-status b { color: var(--ink); }
+
+  .field-label {
+    font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--steel); margin: 4px 0 8px;
+  }
+
+  select {
+    width: 100%; font-family: 'Space Mono', monospace; font-size: 13px;
+    background: var(--void); color: var(--ink);
+    border: 1px solid rgba(138,160,212,0.25); border-radius: 8px;
+    padding: 11px 12px; cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238aa0d4' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
+    background-repeat: no-repeat; background-position: right 12px center; background-size: 16px;
+  }
+  select:focus { outline: none; border-color: var(--plasma); }
+
+  .order-row { display: flex; gap: 8px; margin-top: 14px; }
+  .order, .diff {
+    flex: 1; font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 6px; text-align: center;
+    border: 1px solid rgba(138,160,212,0.22); border-radius: 8px; background: transparent;
+    color: var(--steel); cursor: pointer; transition: all 0.15s;
+  }
+  .order.active, .diff.active {
+    border-color: var(--plasma); color: var(--plasma); background: rgba(52,245,197,0.06);
+  }
+
+  .divider {
+    height: 1px; background: rgba(138,160,212,0.12); margin: 20px 0 16px;
+  }
+
+  .drop {
+    display: block; border: 1px dashed rgba(138,160,212,0.3); border-radius: 10px;
+    padding: 16px; text-align: center; color: var(--dim); font-size: 13px;
+    cursor: pointer; transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+  .drop:hover, .drop.over { border-color: var(--plasma); color: var(--ink); background: rgba(52,245,197,0.04); }
+  .drop b { color: var(--plasma); }
+  .drop small {
+    display: block; margin-top: 5px; font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 0.08em;
+  }
+
+  .btn {
+    margin-top: 26px; font-family: 'Chakra Petch', sans-serif; font-weight: 600;
+    font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--void); background: var(--plasma); border: none; border-radius: 999px;
+    padding: 15px 44px; cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.2s, opacity 0.2s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(52,245,197,0.3); }
+  .btn:active { transform: translateY(0); }
+  .btn.ghost { background: transparent; color: var(--plasma); border: 1px solid var(--plasma); }
+
+  .hint {
+    margin-top: 18px; font-family: 'Space Mono', monospace; font-size: 11px;
+    letter-spacing: 0.12em; color: var(--dim); max-width: 440px;
+  }
+  .hint kbd {
+    border: 1px solid rgba(138,160,212,0.3); border-radius: 4px; padding: 1px 6px; color: var(--steel);
+  }
+
+  .results-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+    width: min(440px, 92vw); margin-top: 30px;
+  }
+  .stat-card {
+    border: 1px solid rgba(52,245,197,0.16); background: rgba(11,18,36,0.55);
+    border-radius: 12px; padding: 18px; text-align: left;
+  }
+  .stat-card .k {
+    font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.25em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .stat-card .v {
+    font-family: 'Space Mono', monospace; font-size: 38px; font-weight: 700;
+    line-height: 1; margin-top: 8px;
+  }
+  .stat-card .v.accent { color: var(--plasma); }
+  .stat-card .v small { font-size: 15px; color: var(--dim); }
+
+  .verdict {
+    font-family: 'Space Mono', monospace; font-size: 13px; letter-spacing: 0.2em;
+    text-transform: uppercase; margin-top: 26px; color: var(--amber);
+  }
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  .lock-hint {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--dim); z-index: 20; pointer-events: none;
+    opacity: 0.75; text-align: center; width: 92%;
+  }
+  .lock-hint b { color: var(--plasma); }
+
+  .context-strip {
+    position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%);
+    width: min(680px, 90vw); text-align: center; z-index: 15; pointer-events: none;
+    font-family: 'Space Mono', monospace; font-size: 12px; line-height: 1.6;
+    color: var(--dim); opacity: 0;
+  }
+
+  @media (max-width: 480px) {
+    .results-grid { grid-template-columns: 1fr 1fr; }
+    .hud-row { gap: 14px; }
+    .hud-value { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <div class="hud" id="hud" style="visibility:hidden">
+    <div class="hud-block">
+      <span class="hud-label">İmha</span>
+      <span class="hud-value accent" id="hudScore">0</span>
+    </div>
+    <div class="hud-block right">
+      <div class="hud-row">
+        <div class="hud-block right">
+          <span class="hud-label">WPM</span>
+          <span class="hud-value" id="hudWpm">0</span>
+        </div>
+        <div class="hud-block right">
+          <span class="hud-label">İsabet</span>
+          <span class="hud-value" id="hudAcc">100%</span>
+        </div>
+        <div class="hud-block right">
+          <span class="hud-label">Can</span>
+          <span class="hud-value warn" id="hudLives">♥♥♥</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meter" id="meter" style="visibility:hidden">
+    <div class="meter-label" id="meterLabel">METİN 1 · KADEME 1</div>
+    <div class="meter-track"><div class="meter-fill" id="meterFill"></div></div>
+  </div>
+
+  <div class="lock-hint" id="lockHint" style="visibility:hidden">
+    İlk harfe bas → kilitle · doğru harf <b>ateş eder</b> · yanlış harf yutulur
+  </div>
+
+  <!-- START -->
+  <div class="screen" id="startScreen">
+    <div class="brand">KATİP<span class="dot">·</span>TYPE</div>
+    <div class="brand-sub">Klavye Talim İstasyonu</div>
+
+    <div class="panel">
+      <h2>Kaynak Metin</h2>
+      <div class="src-status" id="srcStatus">Yüklü: <b id="srcLabel">Hukuk metinleri (30 metin)</b></div>
+
+      <div class="field-label">Hangi metin?</div>
+      <select id="textSelect"></select>
+
+      <div class="field-label" style="margin-top:16px">Kelime sırası</div>
+      <div class="order-row">
+        <button class="order active" data-order="sirali">Sıralı (metindeki gibi)</button>
+        <button class="order" data-order="karisik">Karışık</button>
+      </div>
+
+      <div class="field-label" style="margin-top:16px">Zorluk</div>
+      <div class="order-row">
+        <button class="diff active" data-diff="kademeli">Kademeli hızlanan</button>
+        <button class="diff" data-diff="sabit">Sabit hız</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <label class="drop" id="drop">
+        <b>Kendi .txt dosyanı</b> bırak ya da tıkla
+        <small>Yüklersen kendi metnin kullanılır</small>
+        <input type="file" id="fileInput" accept=".txt,text/plain" hidden>
+      </label>
+    </div>
+
+    <button class="btn" id="startBtn">Talimi Başlat</button>
+    <div class="hint">
+      Türkçe karakterlerin tamamı desteklenir (ç ğ ı ö ş ü) · <kbd>Esc</kbd> duraklatır<br>
+      Sıralı mod sınava en yakın olandır: kelimeler metindeki akışla gelir.
+    </div>
+  </div>
+
+  <!-- PAUSE -->
+  <div class="screen hidden" id="pauseScreen">
+    <div class="brand-sub" style="font-size:14px">— DURAKLATILDI —</div>
+    <button class="btn" id="resumeBtn">Devam Et</button>
+    <div class="hint">Baştan başlamak için sayfayı yenile</div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="screen hidden" id="endScreen">
+    <div class="brand-sub" id="endTitle" style="font-size:16px;color:var(--hostile)">İSTASYON DÜŞTÜ</div>
+    <div class="results-grid">
+      <div class="stat-card"><div class="k">Net WPM</div><div class="v accent" id="rWpm">0</div></div>
+      <div class="stat-card"><div class="k">İsabet Oranı</div><div class="v" id="rAcc">0<small>%</small></div></div>
+      <div class="stat-card"><div class="k">İmha Edilen</div><div class="v" id="rKills">0</div></div>
+      <div class="stat-card"><div class="k">Ulaşılan Kademe</div><div class="v" id="rLevel">1</div></div>
+    </div>
+    <div class="verdict" id="verdict">DEĞERLENDİRME</div>
+    <div class="btn-row">
+      <button class="btn" id="againBtn">Tekrar Talim</button>
+      <button class="btn ghost" id="menuBtn">Menüye Dön</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== METİN VERİSİ ===== */
+window.KATIP_TEXTS = ["suç toplumda oluşan düzenin devamını sağlamak ve temel haklar ile özgürlüklerin korunabilmesi için gereken hukuki değerlerin ihlal edilmesi şeklinde haksızlık oluşturan insan davranışlarıdır bu davranışlar ceza hukuku yaptırımlarına tabi tutulan ve kanunun karşılığında ceza yaptırımı öngördüğü fiillerdir suç teşkil eden fiil bir hakkı ihlal ettiği için haksızlık teşkil eder dolayısıyla her suç aynı zamanda haksızlık teşkil etmektedir ancak her haksızlık suç değildir suç içeriği bakımından kanun koyucunun inancına göre devletin amaçlarıyla çatıştığından yaptırım olarak ceza veya güvenlik tedbirlerini gerektiren fiil kapsamındadır bir fiilin suç olup olmadığını belirlemek kanun koyucuya aittir suçla ilgili temel kavramlar şunlardır fail cezai nitelikteki hukuka aykırı fiili işleyen kişidir yaralama hırsızlık ve dolandırıcılık suçlarında olduğu gibi suçların çoğunluğu herhangi bir kimse tarafından işlenebilir bunlara genel suçlar denir bazı suçlarsa sadece belli hukuki veya fiili durumdaki kişiler tarafından işlenebilir bunlara ise mahsus suçlar denir her suçun faili olduğu gibi mutlaka hukuki konusu bulunmaktadır örneğin hırsızlık suçunun hukuki konusu zilyetlik yaralama suçunun hukuki konusu vücut bütünlüğü insan öldürme suçunun hukuki konusu yaşam hakkının ihlalleridir suçun maddi konularına bakacak olursak yalnızca maddi varlığı bulunan varlıklar üzerinde suç işlenebilir insan suçun maddi konusu olabilir tüzel kişiler topluluklar ve cismani varlığı olmayan şeyler suçun maddi konusunu oluşturamazlar örneğin hırsızlık suçunun maddi konusunu çalınan eşya oluştururken kasten öldürme suçunun maddi konusunu insan oluşturmaktadır mağdur insan toplum devlet ve tüzel kişiler olabilmektedir her suçun mutlaka mağduru vardır suçun mağdurları suç işlenirken hayatta olan kişilerdir kimse kendi kendisine karşı suç işleyemez örneğin intihar suç değildir ancak şikayete bağlı suçlarda şikayet hakkı kullanımı suçun mağduruna tanınmıştır suç devlete toplumun varlığına ve gelişimine ilişkin menfaatlerinin ihlalinden kaynaklanan sosyal zarar yanında doğrudan olarak zarar da doğurur bu zararlar her suçta mutlaka bulunmaktadır ihlal zarar verme şeklinde ya da tehlikeye düşürme şeklinde kendini göstermektedir suç işlenmesi nedeniyle mağdur olan kişi ile suçtan zarar gören kişi birbirinden farklılık göstermektedir", "genel olarak kanunlarda suç olarak tanımlanan eylemleri işleyen kişilere verilen yaptırımlara ceza denir cezalar keyfi olmamalıdır hakkaniyete uygun insani herkese eşit olacak şekilde uygulanmalıdır verilen cezalarda toplum yararı gözetilmelidir genel olarak cezalar hapis cezası para cezası vücuda zarar verme hayata son verme veya fail tarafından bir şeyin yapılması şeklinde olabilir türk ceza kanununda bedensel veya hayata yönelik cezalar bulunmaz türk hukuk sisteminde işlenen suçların karşılığı olarak hapis cezaları veya adli para cezaları öngörülür türk hukuk sistemindeki cezaların temel özellikleri arasında cezaların şahsiliği ilkesi bulunmaktadır buna göre kişiler başka birinin işlediği fiiller nedeniyle sorumlu tutulamaz kanunilik ilkesi de cezaların başka bir özelliğidir ceza yasa koyucu tarafından kanunla konulup ancak kanunla kaldırılabilir yasa koyucu neyin suç olup olmayacağı suçların karşılığı cezaların neler olacağı konusunda takdir hakkına sahiptir ayrıca cezanın insan onuruyla bağdaşır nitelikte olması gerekir hiç kimse insan onuru ile bağdaşmayan bir ceza veya muameleye tabi tutulamaz ayrıca fiili gerçekleştiren kişiye verilen cezanın kişiye uydurulması gerekir buna cezanın bireyselleştirilmesi denir suç sayılan eylemler bazı şartlar altında gerçekleştirilirse suç olarak ifade edilmeyebilir bazı durumlarda da suç sayılmakla birlikte ceza indirimi yapılması ya da ceza verilmemesi sonucunu doğuran sebeplere hukuka uygunluk nedenleri denir bu durumlarda işlenen fiiller suç olmayıp kişiye ceza verilmesi uygun değildir ayrıca güvenlik tedbiri uygulanamaz bu kişiler hakkında dava açılmışsa beraat kararı verilir bazı hallerdeyse kişinin ceza sorumluluğu ortadan kalkar işlenen fiil nedeniyle failin hangi şartlarda sorumlu tutulacağının tespitinde kusur durumu önemlidir işlediği fiil ile ilgili kişideki irade gelişiminin şartları bu şartlara istinaden gerçekleştirdiği eylem nedeniyle failin şahsen cezalandırılması gerekmediği kusur durumu ile ilgilidir kanuni tanımda yer verilen suç failin kusur yeteneği olmasa bile işlenmiş olursa haksız bir fiildir ve suç niteliğini korur kanun koyucu faile bazı hallerde kusur yeteneği olmadığı için ceza verilmemesi gerektiğini bazı hallerdeyse kusur yeteneğinin zayıf olduğu için nispeten daha hafif ceza verilmesi gerektiğini kayıt altına almıştır", "failin gerçekleştirmiş olduğu fiille ortaya çıkan sonuç arasında manevi bağ bulunur bu manevi bağ kusur olarak ifade edilir failin cezalandırılması için bağın türünün tespit edilmesi önemlidir örneğin akıl hastalığı bulunan kişinin işlediği suç fiilinin farkında olmaması durumunda cezalandırılması mümkün değildir suçun manevi unsurları olarak ifade edilen kast ve taksir kavramları failin gerçekleştirdiği fiille arasındaki nedensellik bağını ifade etmektedir kast kusurlu iradenin tipik gerçek şeklidir suç kanunu emrinin açıkça ihlalidir emrin ihlali failin yasaklanan fiili istemesi durumunda gerçekleşir kastın varlığı için sadece hareketin değil sonucun da istenmesi gerekir türk ceza kanununa göre kast suçun var olduğunu söyleyebilmek için kastın varlığı gereklidir kast ise suçun kanuni tanımındaki unsurların bilerek ve istenerek gerçekleşmesini ifade eder kastın varlığı suçun bütün aşamalarında aranır ceza kanunlarını bilmiyor olmak elbette mazeret olarak sayılmaz tüm kanunların herkes tarafından bilinmesini beklemek söz konusu olamaz hukuku meslek edinen kişilerin bile bunları ezbere bilmeleri veya suç olduğunu tahmin etmeleri mümkün değildir bu gibi durumlarda gerçekleştirilen fiilin icrası sırasında suçun kanuni tanımında sayılan maddi unsurları bilmeyen bir kişinin kasten hareket ettiği söylenemez suçun kanuni tanımında sayılan unsurların tamamı bilinmese bile ahlaki yönden yanlış olduğu bilinen eylemin suç olacağı ihtimalini kişi tahmin edebilmelidir örneğin yaralama veya hileli davranışlarla dolandırma herkes tarafından bilinen ahlaken de yanlış kabul edilen davranışlardır bu durumda kimse suçun kanuni tanımında bulunan unsurları bilmediğini öne süremez doğrudan kast bilerek ve istenerek suçun kanuni tanımında yer alan fiilin işlenmesidir örneğin pastanede bir kimseye ateş ederek öldüren kişi doğrudan kastla hareket etmiş ise insan öldürme suçunu işlemiş olur dolaylı kast suçun kanunda tanımlanan fiilin gerçekleşmesinin mümkün veya muhtemelen öngörülmesine rağmen neticenin meydana gelmesinin göze alınması şeklinde bir düşünce ile fiilin işlenmesidir örneğin pastanede ateş eden fail oranın kalabalık olması sebebi ile öldürmek istediği kişi dışında başka kişilerin de zarar görme ihtimalini düşünmelidir ateş sonucu başka kişileri de yaraladığında yaralama suçundan da ceza alır", "taksir yasalarda öngörülen dikkat ve özen yükümlülüğü ihlalinden kaynaklanan öngörülebilir bir suçun kasıtsız olarak işlenmesidir taksir ile işlenen fiiller sadece kanunda açıkça belirtilen hallerde başvurulan sorumluluk şeklidir taksirde kusur ağırlığı kasıtlı suçlara göre daha azdır fail çoğu zaman kendisi de bir mağduriyet yaşar özellikle trafik kazalarında bu durum sıklıkla yaşanır dikkatli ve tedbirli davranarak ortaya konulması gereken irade yerine dikkatsiz ve tedbirsiz davranarak başka bir irade ortaya konulur taksirli sorumluluktan söz edebilmek için mutlaka zararlı neticenin gerçekleşmesi gerekir taksirle işlenen suç neticesinde verilecek olan ceza failin kusur oranına göre değişir basit taksir öngörülebilir neticeyi failin öngörememesi sonucunda ortaya çıkar failin dikkatli ve özenli olması gerekirken bu yükümlülüğe aykırı hareketle suç fiilini işlemesidir basit taksir için bilinçsiz taksir adi taksir gibi ifadeler de kullanılmaktadır örneğin gerekli iş güvenliği önlemlerini almayan bir fabrikada işçi çalıştıran işveren iş kazası neticesinde yaralamaya sebebiyet verirse basit taksirle yaralama suçunu işlemiş olur birden fazla kişinin taksirle işlediği suçlarda herkes kendi kusurundan dolayı sorumlu olur her failin cezası kendi kusur oranlarına göre ayrı ayrı belirlenir bilinçli taksir failin öngörüsüne rağmen neticenin gerçekleşmesini istemeyip kural ihlali yapıp ya da şans kişisel yetenek gibi etkilere güvenerek hareket etmesiyle suç fiilini işlemesidir fail sonucun meydana gelebileceğini öngörmesine rağmen sonucun gerçekleşmeyeceği inancıyla hareket eder örneğin sollamanın yasak olduğu yolda bu yasağa uymayıp şoförlüğüne güvenerek sollama yapan ve ölüme sebebiyet veren kişiye bilinçli taksirle ölüme neden olma suçundan dolayı ceza verilir taksirli hareketle sebep olunan olayda failin kişisel ve ailevi durumu artık cezanın verilmesini anlamsız kılacak kadar mağdur olmasına neden olursa ceza verilmez taksirle işlenen suçlarda kanundaki tanımında kastın unsurlarından bilerek ve istenerek işlenmesi yer almaz taksirden bahsedebilmek için failin suç işlerken suç işlemek amacıyla hareket etmemiş olması gerekir kastla taksir arasındaki önemli ayrım isteme unsurudur kanunun fiilin taksirle işlenen şeklini doğrudan suç olarak kabul etmediği durumlarda taksirle işlenen fiilin suç olarak kabulü mümkün değildir", "kişi işlemeyi kastettiği bir suçu elverişli hareketlerle doğrudan doğruya icrasına başlayıp elinde olmayan nedenlerle tamamlamazsa teşebbüsten dolayı sorumlu olur suç genelde fiilin işlenmesi ve neticenin meydana gelmesi ile sonuçlanır suçun tam olarak gerçekleşmediği durumlarda da suç genel tanımının dışında kalır işlenen suç tamamlanmaz veya suç unsurlarının eksik olması nedeniyle suçun hukuk tanımına uymaması durumunda suçun özel görünüş şekillerinden bahsetmek gerekir teşebbüs suçun özel görünüş şekillerinden biridir suç yolunda ilerleyen fail çeşitli aşamalardan geçer suç yolunda icra ve tamamlama aşaması olmak üzere iki aşama vardır kasıtlı işlenen suçlarda bahsedilen aşamalara düşünce aşaması da eklenir bu aşama icra aşamasından önce gelir bazen de tamamlanma aşamasını son bulma aşaması takip eder böylece suç yolunda dört aşama vardır denilebilir düşünce aşaması ceza hukukunu ilgilendirmez eyleme dönüşmeyen hiçbir düşünce cezalandırılamaz icra aşamasına geçilmesiyle ceza hukukunun alanına girilir düşüncenin somutlaştırılarak dış dünyada eyleme dönüşmesi her zaman o suçun icrasının başladığı anlamına gelmez bu aşamada da hazırlık hareketleri icra hareketleri ayırımı yapılır hazırlık aşaması kural olarak cezalandırılmaz ancak bazı istisna teşkil eden suçların hazırlık hareketleri cezalandırılabilir icra aşamasında failin suç işleme düşüncesi icrai veya ihmali bir hareketle somutlaşır icra aşamasından sonra tamamlama aşaması gelir tamamlanmış suç fail tarafından işlenen somut fiilin kanundaki soyut tanıma uymasını ifade etmektedir fiil suç tanımına uygun bulunduğu anda suç tamamlanır teşebbüs aşamasında kalmış suçu tam tamamlanmış suçtan ayıran nokta tamamlanma anının yokluğudur suçun tamamlanması ile son bulması aynı olabileceği gibi bazen çakışmayabilir örneğin tokat atıldığında yaralama suçu oluşarak tamamlanır birden fazla tokat atıldığında son tokadın atılmasıyla suç tamamlanmış olur aslında ilk tokadın atılmasıyla suç zaten tamamlanmıştır bütün unsurları tamamlanmış suçla teşebbüs aşamasında kalmış suç arasında manevi unsur yönünden fark yoktur her ikisi de suç sayılan belirli bir sonuca ulaşabilmek amacı ile işlenir teşebbüste eksik failin iradesi dışında kalan nedenle bu sonuca götürecek hareketlerin bitmesi veya biten hareketlerden hedeflenen sonucun oluşmasına engel olmasıdır", "failin suçun icra eyleminden kendi isteğiyle vazgeçmesi ya da kendi çabası sonucu suçun tamamlanmasını veya sonucun gerçekleşmesini önlemesi gönüllü vazgeçme şeklinde ifade edilir gönüllü vazgeçmede fail suç yolunda sonuna kadar ilerleme imkanına sahipken kendi isteği ile devam etmek istemez gönüllü vazgeçen kişi teşebbüsten dolayı cezalandırılmaz eylemin tamamlanmış olan kısmı eğer herhangi bir suç oluşturursa bu durumda sadece o suça ait ceza ile cezalandırılır gönüllü vazgeçmede fail icra hareketlerine devam edebilecek ve neticeyi gerçekleştirebilecek imkana sahiptir ancak bunu istememektedir neticeyi gerçekleştirme ve devam etme isteğinin olmasına rağmen bu eylemi gerçekleştiremiyorsa gönüllü vazgeçme yoktur saik önemli değildir mağdura duyduğu acıma cezadan korkma günah işleme düşüncesi toplumsal dışlanma endişesi gibi nedenlerle vazgeçme olabilir vazgeçme failin özgür iradesi ile olmalıdır dışarıdan gelen maddi veya manevi baskı altında vazgeçen kişi gönüllü vazgeçmiş olmaz failin iradesi zorlanmış olmamalıdır örneğin failin hırsızlık yapmak için girdiği evde ev sahibine acıyarak ya da günah işleme düşüncesi ile icra hareketlerini tamamlamaktan vazgeçtiği durumda bu vazgeçme gönüllü gerçekleşmiştir sadece tamamlanan kısım suç oluşturuyorsa fail o kısımdan sorumlu olur verilen örnekte fail sadece konut dokunulmazlığının ihlalinden sorumlu olur ancak güvenlik görevlisinin düdüğünü duyduktan sonra pencereden atlayan failin vazgeçme eylemi gönüllü olmayıp fail hırsızlığa teşebbüs suçundan dolayı cezalandırılır failin fiilini sona erdirmesine herhangi bir neden engel olacak şekilde sebep olmuşsa ve bu nedenle fail amacına ulaşamayacağını anlayarak eyleme devam etmeyi bırakmışsa gönüllü vazgeçme yoktur devam etme imkanı olmalı ve kendi iradesiyle kullanmaktan vazgeçmiş olmalıdır failin pişman olurken samimi olması şart değildir ceza korkusu üçüncü kişilerin tavsiyesi veya acıma gibi nedenler failin vazgeçme sebepleri arasındadır etkin pişmanlık kişinin işlemiş olduğu suçlardan dolayı kendi isteğiyle sonradan pişman olması suç teşkil eden fiilin meydana getirdiği olumsuz sonuçları gidermesi halinde uygulanan ceza hukuku kavramıdır suç oluştuktan sonra fail suç eyleminden kendi isteği ile döner ise etkin pişmanlık cezayı ortadan kaldırabileceği gibi cezada indirim yapılabilmesini de sağlar", "haksız tahrik failin kendi kusuru olmaksızın başkalarının haksız hareketleri sonucunda kapıldığı hiddet veya elemin etkisiyle bir tepki suçu işleyerek hiddetle işlediği tepki suçunun cezasının bir miktar indirilmesidir insan psikolojisinin buhran halini ifade eden haksız tahrik cezayı hafifleten genel kişisel ve kanuni bir nedendir haksız tahrikin kişide oluşturduğu öfke ve şiddetli elem nedeniyle failin iradesinin özgürlüğünün azaldığı ve mağdurun haksız hareketinin suça neden olduğu düşüncesiyle faile daha az ceza verilir cezanın azaltılmasını gerektiren iki neden bulunur bunlar psikolojik nedenler ve haksız tahriktir psikolojide heyecanın bir türü şeklinde nitelendirilen hiddet halidir bu durumda insanın iradesi zayıflayarak rahatlıkla suç işleyebilir bu şekilde suç işleyen kişiler normal durumlarda suç işleyen kişilerden daha az tehlikelidir haksız harekete uğrayan kişinin içine düştüğü bu psikolojik durum göz önünde bulundurulmalıdır çünkü haksız harekete uğrayan kişi iradesi zayıfladığı için kolaylıkla suç işleyebilir objektif veya hukuksal nedenlerin varlığında tahrik edilmesi nedeniyle suç işleyen kişi tek başına suç işlemiş sayılmaz tahrik eden mağdurun da suçu vardır olayda yalnızca faili sorumlu tutmak haksızlık olur çünkü bu suçun işlenmesinde mağdurun yaptığı hareket etkili olmuştur mağdurun kusurlu hareketleri failin cezasında indirim yapılmasını gerektirir kendisine yöneltilen haksız hareketler sonucunda sakinliğini koruması gerekirken bunu yapamayarak duygusal çöküntü yaşayan duyduğu üzüntü ve öfke nedeniyle suç işleyen failin bu etkilenmesine hukuki değer vermek ceza adaletinin gereğidir hakim her olayın özelliğine göre hangi fiilin tahrik edici fiil olduğunu tespit eder tahrik edildiğini söyleyen kişinin durumu olay yeri ve zamanı dikkate alınarak belirlenir tahrik eylemi failin şahsına vücut bütünlüğüne hürriyetine yönelebilir hatta failin yakınlarına sevip değer verdiği kimselere değer yargılarına malvarlıklarına veya faille herhangi bağı olmayan üçüncü kişilere yönelik işlenebilir tahrike sebebiyet veren fiil haksız olmalıdır bir hareketin haksız olması için hukukla çatışması yeterlidir hareketin ayrıca suç oluşturuyor olması gerekmez suçsa zaten haksızdır hiddet şiddetli bir öfkenin hali olarak tanımlanmaktadır kanun hiddet ve elemi birbirine benzediği için aynı nitelikte kabul eder", "kişinin kendisine veya başkasına ait bir hakka yönelik gerçekleşmesi ya da tekrarı muhakkak olan haksız saldırıyı o andaki mevcut hal ve koşullara göre uzaklaştırmak amacıyla işlenen fiiller meşru savunmadır zorunluluk kapsamında işlenen fiille yapılan saldırının arasında orantı olmalıdır bu zorunluluktan dolayı fail cezalandırılmaz meşru savunma tüm ceza kanunlarında kabul edilen hukuka uygunluk nedenlerinden biridir insanda bulunan kişinin kendini koruma içgüdüsüne dayanır haksız saldırıyla karşılaşan kişi kendisini koruma amacıyla hareket eder hukuk düzeni saldırıya uğrayan kişinin menfaatini kanuna karşı çıkan kişinin menfaatine tercih eder meşru savunma söz konusuysa suç olmadığından failin cezai sorumluluğu bulunmaz bütünüyle sona ermiş saldırıda meşru savunma olmaz başlamamış ancak başlaması muhakkak olan devam eden veya bitmiş olmasına rağmen tekrarı mümkün bulunan saldırı mevcut saldırı sayılır ileride saldırıda bulunacaktı gibi düşünceyle saldırı yapmak meşru savunma değildir saldırı tamamen bittikten sonra bir fiilin işlenmesi halinde de savunmadan bahsedemeyiz bu durumda şartları mevcutsa haksız tahrik söz konusu olur saldırı mutlaka fiziki bir şiddet olarak anlaşılmamalıdır önemli olan savunmayı zorunlu kılan tehlikelerin varlığıdır örneğin bir kişi kapı önünde durup insanların binaya girmelerini engelliyorsa zorunluluk durumu vardır denir ancak sözlü saldırılar bu anlamda saldırı olarak kabul edilmez bir kimsenin belli şekilde hareket etmesine izin veren veya emreden kuralların bulunmaması gerekir hukuka uygunluk nedenleri varken gerçekleşen saldırılar haksız değildir örneğin bir tutuklama emrini yerine getiren polis memuruna karşı şiddet uygulayan kimse meşru savunma durumunda olamaz sadece insanların gerçekleştirdiği eylemler haksız olabilir hayvan saldırısı veya doğada gerçekleşen olaylara karşı savunma meşru savunma olmaz ancak bir tehlike söz konusu olursa o zaman zorunluluk halinden söz edilir eğer bir hayvan sahibi tarafından araç olarak kullanılıyorsa yani saldırıda bulunması için yönlendiriliyorsa saldırgan hayvan değil hayvan sahibidir kişi haksız saldırıya kendisi neden olmuş olsa bile haksız saldırıyı yapan kişi hukuken korunmadan mahrum bırakılamaz kendi haksız hareketiyle diğer kişiyi meşru savunma durumuna sokmuşsa kişinin savunması meşru savunma sayılamaz", "kendisine veya başkasına ait bir hakka yönelik olup kişinin bilerek neden olmadığı başka şekilde korunma olanağı bulunmayan ağır bir tehlikeden kurtulmak veya başkasını kurtarmak zorunluluğu ile işlenen fiiller zorunluluk halini ifade eder tehlikenin ağırlığıyla konu ve kullanılan araç arasında orantı bulunması koşuluyla işlenen fiillerden dolayı faile ceza verilmez zorunluluktan bahsedebilmek için yaklaşan bir tehlike veya mevcut bir tehlike olmalıdır derhal korunma hareketi yapılmazsa korunmaya çalışılan yararın zarar görme ihtimali daha büyük olabileceğinden yakın tehlike de mevcut tehlike olarak kabul edilir tehlike durumunun nedeni önemli değildir insanın açlık susuzluk gibi ihtiyaçları veya doğal nedenler hatta insan saldırısı da neden olabilir insan saldırısı durumunda saldırıya uğrayan kişinin hareketi saldırgana karşı değil tehlikeye yabancı başka kimseye karşı olmalıdır zorunluluk hali gerçekleştiğinde tehlike mutlaka masum üçüncü kişinin zarar görmesini haklı gösterecek ağırlıkta olmalıdır bu durumda hem tehlikenin ağır olması hem de ortaya çıkabilecek zararın ağır olması gerekir örneğin tehlikeye neden olan kişi daha sonra yaptığı hareketi bertaraf etmek amacıyla üçüncü kişilere zarar vermesi durumunda zorunluluk halinden faydalanamaz tehlikeye kasten veya bilinçli taksirle sebep olan kişi bu durumdan faydalanamaz taksirli hareketi nedeniyle tehlikeye sebep olan kimse tehlikeye bilerek neden olmuş sayılmaz tehlikeye bilerek neden olunması failin hem iradi hareketle tehlikeye neden olması hem de tehlikeyi öngörmüş veya istemiş olması anlamına gelmektedir korumaya ilişkin koşullarda kişinin fiilinin tehlikeden kurtulmak için zorunlu olması gerekmektedir başka türlü kurtulma imkanı varsa suç işleyip tehlikeyi önleyen kişi zorunluluk halinden faydalanamaz tehlikede bulunan hak başkasının hakkına zarar vermeden korunabilir bir haksa zorunluluk hali yoktur örneğin kaçarak tehlikeyi önlemek mümkünse yine zorunluluk hali yoktur tehlikeye maruz kalan kişi bu tehlikeye göğüs germe yükümlülüğündeyse bu kişi tehlikeyi bertaraf etmek için üçüncü kişilere zarar verdiğinde zorunluluk halinden yararlanamaz örneğin gemi kaptanı olası bir tehlikede tüm yolcuları tahliye ettikten sonra gemiyi terk edebilir bir komutan savunmaya yarayan tüm araçları tüketmeden düşmana teslim olursa zorunluluk hali olmaz", "kanunun ayrı tuttuğu durumlar dışında sanık duruşmada hazır bulunmazsa hazır bulunmayan sanıkla ilgili duruşma yapılmaz sanığın duruşmaya gelmemek için geçerli bir nedeni yoksa duruşmaya zorla getirme kararı alınır ancak sanıkla ilgili elde edilen deliller dikkate alındığında mahkumiyet haricinde bir karar verilmesi sonucuna ulaşılırsa dava sanığın yokluğunda bitirilir mahkemeye gelen sanığın duruşmanın devam ettiği süre boyunca hazır olması sağlanır ve duruşmadan kaçmasını engelleyecek önlemler alınır sanık sorguya çekilir ve artık duruşmada bulunmasına gerek kalmaz ise bu durumdaki sanık duruşmadan çekilebilir ya da verilen aradan sonraki oturumlara katılmasa bile dava yokluğunda bitirilir mahkeme tarafından sorgusu yapılan sanık ya da bu hususta sanık tarafından yetki verilen müdafi talepte bulunursa mahkeme sanığı duruşmada hazır bulunmaktan bağışık tutabilir hastalık disiplin önlemi veya zorunlu diğer sebeplerle yargılamanın yapıldığı yargı çevresi dışındaki bir hastane ya da tutukevine gönderilmiş sanığın sorgusu yapılmışsa diğer celselere katılmamasına mahkeme tarafından karar verilebilir sanığın beş yıl hapis ve daha fazla cezasını gerektiren suçlar dışındaki suçlar için istinabe yoluyla sorgusu yapılabilir sorgu için saptanan gün cumhuriyet savcısı sanık ve müdafine iletilir cumhuriyet savcısı ile müdafinin sorgu işlemi esnasında hazır bulunması zorunlu değildir sanığa sorgu işlemi başlamadan önce ifadesini esas mahkemesi önünde verme isteği sorulur sorgu işlemine ait tutanak duruşmada okunur yurt içinde bulunan sanığın sorgusu hakim veya mahkemenin zorunlu bulduğu hallerde görüntülü ve sesli iletişim tekniği kullanılarak yapılır bu durumdaki sanığın duruşmalara aynı teknik aracılığıyla katılmasına karar verilir yurt dışında olması sebebiyle duruşma tarihinde duruşmaya katılması mümkün olmayan sanık yönünden duruşmanın yapılacağı tarihten önce duruşma açılarak veya istinabe yoluyla sorgusu yapılabilir duruşmada sanığın yüzüne karşı suç ortaklarından birisinin ya da bir tanığın doğruyu söylemeyeceği izlenimi oluşabilir bu durumda mahkeme sorgu ve dinleme işlemi esnasında sanığı mahkeme salonundan çıkarma kararı alabilir sanık tekrar geldiğinde ise tutanaklar okunur duruşma anında savcı ya da müdafi sanığa katılana tanıklara ve duruşmaya çağrılan diğer kişilere doğrudan soru sorabilirler", "soruşturma evresinde hakkında suç işlediği şüphesi bulunan kişilere şüpheli denir kovuşturma evresinin başlamasından hükmün kesinleşmesine kadar geçen süreçte hakkında suç şüphesi bulunan kişilere ise sanık denir şüpheli ve sanık ceza muhakemesi sürecinde savunma makamı olarak yer alır şüpheli veya sanık savunma hakkını kendisi kullanabileceği gibi istemesi halinde savunma sürecinde müdafiden yararlanabilir bir şüphelinin sanık sıfatı alması için soruşturmada elde edilen deliller ile yeterli şüpheye ulaşılması ve buna dayanarak savcı tarafından hazırlanan iddianamenin mahkeme ya da hakim tarafından kabulü gerekir şüpheli ve sanık muhakeme süreci tamamlanıp kesin hüküm verilinceye kadar suçlu veya suçsuz olarak ifade edilemez şüpheli veya sanık hakkında suç işlediği şüphesi mevcutsa nihayetinde insan olduğu unutulmamalı ve insanlık onuruna yakışmayan uygulamalara maruz bırakılmamalıdır şüpheli ve sanık ceza muhakemesinde birçok haklara sahiptir ceza muhakemesinin temel ilkeleri aynı zamanda şüpheli ve sanığın hakları olarak kabul edilir şüpheli ve sanık hakları arasında haklarını ve yapılan suçlamayı öğrenme hakkı yakınlarına haber verilmesini isteme hakkı susma hakkı delillerin toplanmasını talep etme hakkı dosyayı inceleme ve dosyadan örnek alma hakkı müdafiden yararlanma hakkı ve lekelenmeme hakkı bulunmaktadır şüpheli veya sanığa soruşturma ve kovuşturma evrelerinde hakkında işlem yapılan ilk anda yetkili makamlar tarafından hakları açıklanır müdafi seçme hukuki yardımdan faydalanma susma ve delillerin toplanmasını isteme hakları olduğu kendisine bildirilir ayrıca şüpheli ve sanığa kendisine yöneltilen suçlamanın ne olduğu bildirilir ifade alınması veya sorguya çekilme işlemi gerçekleşmeden önce şüpheli ya da sanığa kendisine yöneltilen isnadın ne olduğu açıklanır susma hakkı şüpheli ve sanığın kendisine yöneltilen suç hakkında açıklama yapmamasıdır kişi bu hakkı hiçbir soruya cevap vermeyerek tamamen bazı sorulara cevap verip bazılarına vermeyerek kısmen de kullanabilir sanığın kendisine yöneltilen suç isnadını çürütmek için lehine olan delillerin toplanmasını talep etme hakkı mevcuttur ayrıca sanığa kendisini savunarak isnat olunan suç şüphesini ortadan kaldırma hakkı tanınır şüpheli ve sanık ceza soruşturması ve kovuşturmasının her aşamasında bir müdafiden yararlanma hakkına sahiptir", "ön inceleme aşaması sona erdikten sonra sözlü yargılama için taraflar duruşmaya davet edilir taraflara duruşma için davetiye gönderilir davetiyede tarafların belirlenen gün ve saatte geçerli bir mazereti olmadan duruşmaya gelmemeleri halinde yokluklarında devam edileceği yazılır bu aşamadan sonra devam edilen duruşma süreci için yapılan işlemlere itiraz etme haklarının sona erdiği bildirilerek sözlü yargılamada duruşmanın ertelenmesi halinde tekrar davetiye gönderilmeyeceği bildirilir duruşmaya usulüne uygun olarak davet edilmiş olan taraflar duruşmaya gelmez ya da gelip de davayı takip etmezler ise bu durumda dosyanın işlemden kaldırılmasına karar verilir usulüne uygun şekilde davet edilmiş olan taraflardan biri duruşmaya gelir diğeri gelmezse gelen tarafın talebi üzerine yargılamaya gelmeyen tarafın yokluğunda devam edilir veya dosya işlemden kaldırılır geçerli bir sebebi olmadan duruşmaya gelmeyen taraf yokluğunda yapılan işlemlere itiraz edemez mahkeme taraflardan birinin talebi üzerine talep eden tarafın veya vekilinin aynı anda ses ve görüntü nakli yoluyla bulundukları yerden duruşmaya katılmalarına ve usul işlemleri yapmalarına karar verebilir mahkeme resen veya taraflardan birinin talebi ile tanık bilirkişi ya da uzmanın aynı anda ses ve görüntü nakli yoluyla bulundukları yerden dinlenilmesine karar verebilir mahkeme tarafların üzerinde serbestçe tasarruf edemeyecekleri dava ve işlerde ilgililerin aynı anda ses ve görüntü nakledilmesi yoluyla bulundukları yerden dinlenilmesine resen karar verebilir mahkeme fiziki engel veya güvenlik sebebiyle duruşmanın il sınırlarının içinde başkaca yerde yapılmasına yargı çevresi içinde yer aldığı bölge adliye mahkemesi adalet komisyonunun uygun görüşünü alarak karar verebilir hakim duruşma esnasında düzeni bozan kişinin avukatlar hariç duruşma salonundan çıkarılmasını emreder kişi uyarıya rağmen mahkemenin düzenini bozmaya devam ederse uygun olmayan söz söyler ve davranışlarda bulunursa yakalanır ve hakkında dört güne kadar disiplin hapsi uygulanır bu hüküm avukatlar hakkında uygulanmaz mahkeme huzurunda söylenen sözler ve uygun olmayan davranışlar suç teşkil ediyorsa bu durum tutanak altına alınarak cumhuriyet başsavcılığına bir yazı ekinde gönderilir suç teşkil eden fiili işleyen kişinin avukatlar hariç gerekiyorsa tutuklanmasına karar verilir", "duruşma herkese açıktır ancak genel ahlakın veya kamu güvenliğinin kesin olarak gerekli kıldığı hallerde duruşmanın bir kısmının veya tamamının kapalı yapılmasına mahkemece karar verilebilir duruşmanın kapalı yapılması konusundaki gerekçeli karar ile hüküm açık duruşmada açıklanır sanık on sekiz yaşını doldurmamışsa duruşma kapalı yapılır hüküm de kapalı duruşmada açıklanır bu duruma zorunlu kapalılık denilir kapalı duruşmada mahkeme bazı kişilerin hazır bulunmasına izin verebilir bu halde adı geçenler duruşmanın kapalı olmasını gerektiren hususları gizli tutması için uyarılır ve bu husus tutanağa yazılır kapalı duruşmanın içeriği hiçbir iletişim aracıyla yayımlanamaz açık duruşmanın içeriği milli güvenliğe genel ahlaka kişilerin saygınlık onur ve haklarına dokunacak veya suç işlemeye sevk edecek ölçüde ise mahkeme bunları önlemek amacıyla ve gerektiğinde duruşmanın içeriğinin kısmen ya da tamamen yayımlanmasını yasaklar ve kararını açık duruşmada açıklar sanığın sorguya çekilmesinden sonra delillerin ortaya konulmasına başlanır ancak sanığın tebligata rağmen mazeretsiz olarak duruşmaya gelmemesi sebebiyle sorgusu yapılamamış ise bu durum delillerin ortaya konulmasına engel olamaz ortaya konulan deliller sonradan gelen sanığa bildirilir cumhuriyet savcısı ile sanık ya da müdafi birlikte rıza gösterirler ise tanığın dinlenmesi veya başka herhangi bir delilin ortaya konulmasından vazgeçilir delilin ortaya konulması istemi bunun veya ispat edilmek istenen olayın geç bildirilmiş olması nedeniyle reddedilemez ortaya konulması istenilen bir delil kanuna aykırı olarak elde edilmişse reddedilir ortaya konulan deliller ile ilgili tartışmada söz sırasıyla katılana veya vekiline cumhuriyet savcısına sanığa ve müdafine veya kanuni temsilcisine verilir cumhuriyet savcısı katılan veya vekili sanık müdafinin veya kanuni temsilcisinin açıklamalarına sanık müdafi ya da kanuni temsilcisi de cumhuriyet savcısının katılanın veya vekilinin açıklamalarına cevap verebilir hüküm öncesi son söz hazır bulunan sanığa verilir bu aşamada zorunlu müdafinin hazır olmaması hükmün verilmesine engel teşkil etmez hakim kararını ancak duruşmaya getirilmiş ve tartışılmış delillere dayandırır bu deliller hakimin kanaatiyle takdir edilebilir yüklenen suç hukuka uygun her türlü delille ispat edilebilir duruşma için tutanak tutulur", "görevsizlik yetkisizlik birleştirme ayırma davanın nakli ve durma gibi kararlar usule yönelik kararlardır iddianamenin kabulü sonrası işin davayı gören mahkemenin görevini aştığı ya da dışında kaldığı anlaşılırsa mahkeme bir kararla işi görevli mahkemeye gönderir davaya bakan mahkeme görevli olup olmadığına kovuşturma evresinin her aşamasında resen karar verebilir görev ile ilgili mahkemeler arasında uyuşmazlık çıkması halinde görevli mahkemeyi ortak yüksek görevli mahkeme belirler duruşmada suçun hukuki niteliğinin değişmesi ile görevsizlik kararı verilerek dosya alt dereceli mahkemeye gönderilemez görevli olmayan hakim ya da mahkeme tarafından yapılan yenilenebilecek bütün işlemler hükümsüzdür adli yargı içindeki mahkemeler bakımından verilen görevsizlik kararlarına karşı itiraz yoluna gidilebilir davaya bakma yetkisi suçun işlendiği yer mahkemesine aittir suçun işlendiği yer belli değilse şüpheli ya da sanığın yakalandığı yer yakalanmamışsa yerleşim yeri mahkemesi yetkilidir birkaç hakim veya mahkeme arasında olumlu ya da olumsuz yetki uyuşmazlığı çıkarsa ortak yüksek görevli mahkeme yetkili hakimi veya mahkemeyi belirler yetkisizlik kararını ilk derece mahkemesince sanığın sorgusundan önce bölge adliye mahkemesince duruşmasız işlerde incelemenin hemen başında duruşmalı işlerde inceleme raporu okunmadan önce verilir bu aşamadan sonra yetkisizlik itirazı olamayacağı gibi mahkemeler de bu hususta resen karar veremez yetkisizlik kararına karşı itiraz yoluna gidilebilir mahkeme bakmakta olduğu birden çok dava arasında bağlantı görür ise birlikte bakmak ve hükme bağlamak üzere bu davaların birleşmesine karar verebilir birleşen davalarda bu davaları gören mahkemenin tabi olduğu yargılama usulü uygulanır davaların ayrılması kararı yargılamanın daha sağlıklı yürütülmesi adına birlikte açılmış ya da sonradan birleştirme kararı verilmiş davaların ayrı olarak görülmesi için verilen bir karardır işin esasına girdikten sonra ayrılan davalara aynı mahkeme devam eder kovuşturma evresinin her aşamasında bağlantılı ceza davalarının birleşmesine veya ayrılmasına yüksek görevli mahkeme karar verir yetkili hakim veya mahkeme hukuki veya fiili sebeplerle görevini yerine getiremeyecek herhangi bir durumda bulunurlarsa yüksek görevli mahkemece davanın başka bir yerde bulunan aynı derecede mahkemede görülmesi için nakline karar verilir", "takip talebiyle birlikte icra dairesi borçluya ödeme emri gönderir borçlu süresinde itiraz etmezse ödeme emri kesinleşir bu aşamada alacaklının cebri icra talebine devam etmesine haciz talebi denir alacaklının haciz talebinde bulunmasından sonraki üç gün içerisinde alacaklının faiziyle birlikte giderler dahil olmak üzere borçludan alacağı menkul gayrimenkul mallar ya da alacak haklarının miktarı kadar haciz işlemi yapılır bu işlemi yetkili icra dairesi memuru yapar borçlu haciz işlemi yapan icra dairesi görevlilerine kıymetli mallarını göstermeye mecburdur görevlilerin gerekirse kolluk kuvvetleri aracılığıyla zor kullanma yetkileri vardır icra dairesi görevlileri haczedilen her kıymetli malı takdir ettikleri kıymeti ile birlikte haciz tutanağına yazar kıymet takdiri konusunda şüphe olan durumlarda bilirkişiye başvurulur alacaklının dışında başka alacaklıların da hacze iştirak etmesi için yapılan takip talebi veya icra mahkemesinde açılan davadan önce işleme konulmuş geçerli belgelere sahip olmaları gerekir ayrıca yapılan haciz işlemi satış yoluyla paraya çevrilmemiş olmalıdır davadan takip talebinden önce alınan bir aciz vesikası ilam senet veya resmi dairelerden alınan hak doğurucu belge olmadan hacze iştirak edilemez borçlunun taşınmazının haczedilmesi için tapuda üzerine kayıtlı olması yeterlidir icra müdürlüğü ilgili taşınmazın kayıtlı bulunduğu tapu sicil müdürlüğüne haciz yazısı yazarak haciz işlemini gerçekleştirir borçlunun taşınır malları ise icra dairesi görevlileri tarafından kıymet takdiri yapılarak bulunduğu yerde haciz tutanağına geçirilir borçlunun üçüncü şahıslar üzerindeki hak ve alacakları için de taşınır mallara özgü haciz işlemleri uygulanır icra müdürlüğü talebe istinaden üçüncü kişi adına bir haciz ihbarnamesi gönderebilir üçüncü kişilerin haczedilen malları arasında sadece taşınır olanları için hak iddiasında bulunmaları mümkündür bulundukları iddiaya istihkak iddiası denir haciz işlemi yapılırken haciz yapılan mallar üzerinde borçlunun dışında başka birinin de sahipliği olduğu borçlu ya da üçüncü bir şahıs tarafından iddia edilirse bu iddia icra müdürlüğünce tutanak altına alınır icra dairesi iddiayı taraflara tebliğ eder tarafların beyanları için kendilerine üç günlük süre verilir konunun tarafları verilen süre zarfında itiraz etmezlerse iddia kabul edilmiş sayılır", "dilekçeler bireylerin muhatabına meramını anlattığı yazılı metinlerdir bu metinlerin hukuk kuralları ile belirlenmiş şekil şartları olsun ya da olmasın her dilekçede mutlaka uyulması gereken bazı şartları vardır diğer bir deyişle meramın düzgün ve etkin biçimde ifade edilmesinde yazılı olmasa da olağan özellikler bulunmaktadır ilkokul yıllarımızdan itibaren türkçe derslerinde türkçe dil bilgisi kuralları yazım imla ve noktalama kompozisyon yazımı gibi dersler verilmiştir bu derslerde yıllardır öğretilen hususlar bugün basit bir dilekçe yazımında en temel özellikler olarak karşımıza çıkar buradan hareketle herhangi bir dilekçenin sahip olması gereken genel özellikler şu şekilde sıralanabilir dilekçeler çizgisiz kağıda yazılır dilekçe yazarken el yazısı ya da bilgisayar kullanılabilir el yazısının kullanılması durumunda tükenmez veya dolma kalem kullanılmalıdır kurşun kalemle dilekçe yazılmamalıdır dilekçe kağıdın bir yüzüne yazılır kağıdın arkalı önlü kullanımı uygun değildir ayrıca sayfanın üst kısmında altında sol ve sağ yanlarında boşluk bırakılmalı ve dilekçe metni sıkışık bir biçimde yazılmamalıdır bazı dilekçe örnekleri başvurular için tek tip bir formatın uygulanması ve kişilere kolaylık sağlaması bakımından matbu olarak bulunur bu matbu dilekçelerin uygun biçimde doldurulması ile başvuru yapılabilir dilekçede sonradan silme tahrifat kazıntı olmamalıdır başka bir imkanın bulunmadığı durumlarda ise dilekçe üzerinde yapılan bu değişikliğin bilginiz dahilinde olduğunu ifade eden ilgili yerin paraflanması yöntemi kullanılabilir dilekçe metni açık ve anlaşılır bir şekilde ele alınmalıdır kelimeler kısaltılarak yazılmamalıdır dilekçede hitap metin tarih ad ve soyad imza iletişim bilgileri ve varsa ekler bölümü bulunur basit kompozisyon yapısı konularında öğrendiğimiz gibi metin temel olarak giriş gelişme sonuç kısımlarından oluşur benzer şekilde dilekçe de bu bölümlerden oluşmaktadır dilekçelerin giriş bölümünde olay anlatılır gelişme bölümünde ilgili soruna ilişkin istekler talepler dile getirilir sonuç kısmında ise saygı sunumu ve arz kısmı bulunur dilekçelerin açık ve anlaşılır biçimde yazılması için öncelikle türkçe hakimiyetinin iyi olması gerekir dilin gerek konuşma gerek yazıda etkin ve zengin kullanılması çocuk yaşlardan itibaren kazanılan okuma alışkanlığı ile oldukça ilişkilidir", "tipe uygun hukuka aykırı kusurlu insan davranışı olarak tanımlanan suç karşılığında uygulanan yaptırıma ceza denir cezalar hürriyeti bağlayıcı nitelikte olabileceği gibi para cezası da olabilir yine hürriyeti bağlayıcı nitelikteki cezalar tek tip olmayıp işlenen suçun özelliğine göre farklı sürelerle belirlenebilir ayrıca belirtmek gerekir ki ceza mutlak suretle bir suçun karşılığı olmak zorunda değildir kabahat niteliğindeki düzene aykırılık eylemleri için de öngörülen yaptırımlar arasında idari para cezaları bulunmaktadır ve bu cezalar da infaz hukukunun konusunu oluşturmaktadır geleneksel olarak cezanın amaçlarını iki grupta toplamak mümkündür birincisi ceza ödetmeye hizmet eder diğer bir deyişle işlenmiş kusurlu fiilin kuralları ihlal etmesine misilleme tepkisidir ikincisi önlemeye hizmet etmektedir yani toplum veya bireyler üzerinde etkili olmak suretiyle suçu önlemeye çalışmaktadır bugün baskın görüş ödetici ve önleyici amaçları bütünleştirmiş bulunan karma görüştür bu bağlamda ceza bir yandan suçluyu topluma uyumlu hale getirmeyi gerekirse toplumdan dışlamayı amaçlarken öte yandan yasada düzenlenmek ve infaz edilmek suretiyle korkutmalıdır gerçekten bugün uzlaştırıcı teoriler geçerli olup bu teorilerin ulaştığı çizgi ceza hukukunun günümüzdeki özel işlevini de ortaya koyar ceza hukukuna özgü amaçlardan ilki toplumsal yaşam yönünden en önemli değerleri özel biçimde korumaktır ceza temel hak ve özgürlükleri sınırlandırmış olduğundan ancak önemli durumlarda ortaya çıkabilir kural olarak örneğin bir sözleşmenin ihlali cezalandırılmaz bu yönüyle ceza hukuku hukuk sisteminin içinde diğer hukuk dallarına yardımcıdır son çaredir bunun zorunlu bir sonucu olarak ceza hukuku yaptırımları arasında da özgürlüğü bağlayıcı ceza son çare olarak görülmelidir genel ve özel önleme ceza hukukunun özel işlevi bakımından önemli rol oynamaktadır genel önlemenin bir işlevi yerine getirdiği muhakkaktır ancak özel önlemenin gerçekleşmesi yani bireyin uslanarak yeniden topluma kazandırılması için infaz konusunda bazı özel düzenlemelere ihtiyaç duyulmaktadır bu nedenle özellikle infaz hukuku temel ilkeleri belirlenmiş ve infaz kurumları yeniden şekillenmiştir gerekli önlem alınsa da cezaevindeki psikolojik durum bireyi farklı eylemlere sevk eder bu durum özellikle kısa süreli cezalarda dikkat çekmektedir", "hukukun tanımlanması ve doğasının ya da öz niteliğinin kavranması için hukukun temel işlevlerinin bilinmesi zorunludur hukukun temel işlevlerini üç ana başlık altında toplayabiliriz bunlar hukukun düzen sosyal gereksinimleri karşılama ve adalet işlevleridir her ne kadar hukukun tanımlanması konusunda bir görüş birliğinin varlığı söz konusu değilse de hukukun işlevsel açıdan adalete yönelen toplumsal yaşam düzeni olarak tanımlanması mümkündür hukuk kavramının tanımı gereğince düzen adalet ve sosyal gereksinimleri karşılama olmak üzere üç temel işlevi bulunmaktadır buna bağlı olarak hukuk normlarının biçim sosyal olgu değer yargısı olmak üzere üç temel karakteri söz konusudur belirtildiği üzere hukukun üç temel işlevinin analizi hukukun doğasının kavranmasına imkan tanır ancak temel işlevlerin analizi dışında bu işlevler arasındaki çelişkilerin de ortaya konulması zorunludur zira hukukun doğasında mündemiç bulunan bu temel işlevler arasında çatışık bir ilişkiler ağı bulunmaktadır örneğin hukukun düzen işlevi somut hukuksal olayların kendilerine özgü niteliklerini göz ardı eden bir şekillenmeye yönelirken adalet işlevi hakkaniyet ilkesi gereği somut hukuksal olayların özelliklerini dikkate alır hukukun öz niteliğinden kaynaklı bu çelişkilerin tümden ortadan kaldırılması olası değildir ancak bu işlevler arasında bir uyumu ya da bütünlüğü sağlama olasılığı söz konusudur hukukun bu temel işlevleri bağlamında adalet işlevinin temel nihai amacı oluşturduğunun ifade edilmesi gerekmektedir hukukun tanımında olduğu gibi amacının belirlenmesinde de bir görüş birliği söz konusu değildir hukukun amaçları bağlamında düzen güvenlik adalet özgürlük ve eşitlik gibi bazı kavramlar gündeme gelmektedir insanın doğası gereği toplumsal bir varlık oluşu toplumsal yaşam düzenini gerekli kılmaktadır insanlık tarihi boyunca bu ihtiyacın bir yansıması olarak insanlar bir takım kurallar ile sosyal yaşamlarını düzenlemeyi amaçlamıştır bu hedef kapsamında ahlak din örf ve hukuk kuralları toplumsal düzeni sağlamayı amaçlayan kurallar bütünü olarak ortaya çıkmışlardır bu düzenleyici kurallar bütününün en önemlisini oluşturan hukuk öncelikle bir düzen kavramını ifade etmektedir hukuk düzeni belirli bir formda varlık kazanmaktadır düzenin bir gereği olarak form hukukun kendi öz niteliğinin bir parçasını oluşturmaktadır", "ispat bir olayın veya olgunun varlığı ya da yokluğu konusunda hakimin kanaat sahibi olmasına yönelik faaliyet olarak tanımlanabilir bir hususu ispatlamaya çalışmak bu konu hakkında hakimi ikna etmek anlamına gelir bir davada iddia ve savunmaya bağlı olarak karşılıklı iddiaları ispatlamaya yarayan kanıtların toplanarak mahkemeye sunulması tarafların yükümlülüğü altındadır bir davada davacı somut olay bakımından iddiasını dayandırdığı olguları davalı ise savunmasını dayandırdığı olguları ispat etmek zorundadır hukuk hayatında bir olayın kimin tarafından ispat edilmesi gerektiği sorununa ispat yükü denir türk medeni kanununa göre kanunda aksine bir hüküm bulunmadıkça taraflardan her biri hakkını dayandırdığı olguların varlığını ispatla yükümlüdür hükümden anlaşılacağı üzere kural olarak iddia eden iddiasını ispatla yükümlüdür ancak burada yükümlülük değil bir yük vardır diğer bakış açısıyla kişi iddiasını ispat edemezse diğer taraf onun ispatını isteyemez bu genel kuralı takiben ispat yükünün bazı istisnalarının olduğuna işaret edilmiştir istisnalardan bahsetmek gerekirse olağan durumun aksini ispat iddia eden tarafa düşmektedir örneğin kural on sekiz yaşını tamamlamış kişinin tam fiil ehliyetinin bulunmasıdır bu kişinin hukuki bir işlem yapması halinde fiil ehliyetinin bulunduğu kabul edilecek aksini iddia eden iddiasını ispat etmek zorunda kalacaktır herkes tarafından bilinen olayların ispatına gerek bulunmamaktadır bunun aksini iddia eden iddiasını ispatla yükümlüdür ispat yükünün özel olarak kanun hükmüyle belirlendiği durumlarda ispat yükü özel kanun hükmünde yazılı kimseye düşmektedir örneğin borçlar kanunu hükümleri gereği haksız eylemde zararı ispat etmek davacıya aittir kanun birtakım karineler koyarak o karineye dayanan tarafı ispat yükünden kurtarmıştır karine belirli olaydan veya varlığı bilinen olgudan belirli olmayan olay veya varlığı bilinmeyen olgunun çıkarılması anlamına gelmektedir karineler fiili ve kanuni karineler olmak üzere ikiye ayrılmaktadır fiili karineler belirli bir olaydan belirli olmayan bir olay için hakim tarafından çıkartılan sonuçtur kanuni karinelerse bir olaydan belirli olmayan bir olay için kanun tarafından çıkartılan sonuçlardır bazı kanuni karinelerse kesin karine olup aksi ispat edilemez örneğin tapu siciline kayıtlı olan hususların bilinmediği ileri sürülemez", "kurum ve kuruluşlarda üretilen belgelerin korunması da en az belge yönetiminin diğer unsurları kadar önemlidir belgelerin uzun zaman boyunca zarar görmeden korunmasının yanı sıra kurumsal ve belgelenebilecek yapıya uygun bir saklama planının tasarlanması gerekir dosyalar öncelikle güneş ışınları rutubet yangın ve su baskınları gibi tehlikelerden korunmalıdır belgelerin fiziksel özelliğini bozan bazı zararlı etkilerin de mümkün olduğunca azaltılması gerekir bunlar kağıt içindeki asit miktarı bakteri toz haşere gibi zararlı etkenlerden kaynaklanır ayrıca gizli ve önemli belgelerin tahrip olmasının çalınmasının veya kopyalanmasının önüne geçilmesi de son derece önemlidir bu tür belgeler gerekli görüldüğü takdirde ayrı ve güvenli bir yerde tutulmalıdır belgeleri korumanın üç önemli nedeni vardır bunlar belgeleri bilgi kaybına neden olacak her türlü tahrip edici unsura karşı korumak belgelerin kaybolmasını önlemek belgelerin ilk haldeki gibi asli düzenlerinin bozulmasını engellemek şeklinde sıralanabilir işaret edilen bu nedenler belgelerin hem fiziksel olarak korunmaları hem de belgelere erişimin doğru eksiksiz ve hızlı sağlanması ile ilişkilidir kurum ve kuruluşlarda belge yönetiminin son aşaması arşiv çalışmalarıdır kurumların faaliyetlerinin sonucunda ortaya çıkan ve çeşitli kullanım alanları olan belgeler belirli bir süre saklandıktan sonra arşivlerde muhafaza edilir bu bağlamda arşivler kurum ve kuruluşların bilgi depolarıdır arşiv malzemesinin uzun süre güvenli bir ortamda sağlam bir şekilde muhafaza edilebilmesi için arşivleme araçlarına ihtiyaç duyulur arşiv malzemelerinin ne tür kaplarda saklanacağı bunları yerleştirecek raflar dosya dolabı imha makinesi gibi arşivleme araçları da en az arşiv araçları kadar önem taşır plastik veya karton malzemelerden üretilen kutuların içerisine arşivlenecek malzemeler belirli bir düzene göre yerleştirilir arşivlenecek malzemenin dağılmadan toplu bir şekilde saklanması sağlanır arşiv kutularının içerisine koyulan arşiv malzemelerinin içeriği hakkında kutunun dışına bilgiler yazılır arşiv süresi kısa olan ve bir süre sonra imha edilmesi planlanan arşiv aletlerinin istifinde arşiv kutuları tercih edilir bu kutuların sık sık hareket etmesi zarar vereceğinden kalıcı bir şekilde istifine özen gösterilir arşiv malzemesi saklama kutusu ucuzdur hiçbir metal ve kimyasal madde olmadan katlama usulü yapılır arşiv malzemesi bırakıp tekrar rahatça çıkarılabilecek şekilde kapatılır", "yasal temsil dava ehliyeti olmayan kişiler için öngörülmüş temsildir ayrıca tüzel kişilerin kendilerini temsile yetkili organı aracılığıyla temsil edilmesi yasal temsil kapsamında değerlendirilir yasal temsilin hangi hallerde mümkün olduğu içeriği ve sona ermesi kanunla belirlenir yasal temsilci temsil ettiği kişi adına hareket eder bu sebeple davanın açılıp açılmayacağına tek başına karar veremez örneğin davanın açılması için izin gerekliyse yasal temsilci izin belgelerini mahkemeye vererek dava açabilir gerekli olan belgelerin mahkemeye verilmemesi durumunda dava açılmamış sayılır türk hukuk sisteminde avukatla temsil zorunlu değildir bu nedenle dava ehliyeti bulunanlar kendi davasını açıp takip edebilir veya atadığı bir temsilci aracılığıyla davasını açabilir ve takip edebilir bu tür durumlarda iradi temsil söz konusu olur iradi temsil tarafların iradelerine dayanan temsildir davanın taraflarından herhangi birisi kendisini temsil edecek kişiye vekalet vererek davayı takip etmek isteyebilir ancak vekalet verilecek kişiler yalnızca baroya kayıtlı avukatlardır kişiler noterde yapacakları işlemle baroya kayıtlı avukatlar arasından bir veya birkaçına vekalet verebilir vekalet temsil yetkisi bakımından genel vekalet ve özel vekalet olmak üzere ikiye ayrılır genel vekalet davada gerekli olan işlemlerin tamamını yapabilme yetkisidir ancak genel vekaleti olan kişilerin vekalet verenin izni olmadan yapamayacağı işlemler de bulunmaktadır hukuk muhakemeleri kanununa göre temsilcilerin sulh olma davanın tamamını ıslah etme hakimi reddetme yemin teklif etme yemin kabul etme gibi bazı işlemleri yapabilmesi açık yetki verilmesiyle mümkündür belirli bir veya birkaç işlemin temsilci aracılığıyla yapılmasına olanak veren vekalet türüne ise özel vekalet denir özel vekaletname olarak düzenlenmiş vekaletnamede temsilcinin yapabileceği işlemler yer aldığı için temsilci bu işlemlerin dışında işlem yapamaz dava devam ederken taraflardan birisinin kendisine yardım etmek üzere üçüncü kişiye davayı haber vermesine davanın ihbarı denir davanın ihbarı genel itibarıyla davaya müdahale değildir nitekim davaya müdahale üçüncü kişinin kendi isteğiyle gerçekleşir mecburi dava arkadaşlığının mevcut olduğu durumlarda davanın ihbarı söz konusu değildir davanın ihbarının ilk koşulu ihbar yapılacak kişinin davanın tarafı olmayan üçüncü kişi olmasıdır ihbarda bulunan tarafın ihbarda bulunmak için herhangi bir makamdan izin almasına gerek yoktur", "toplum düzeninin ayakta kalması ve sosyal barışın korunması için kişilerin sahip olduğu hakları hukuk düzeni korumalıdır hukukun tek işlevi kişilerin sahip olduğu hakları düzenlemek değildir hukuk düzeninin bir yandan kişilerin haklarını tanıması diğer yandan kendiliğinden hak almayı yasaklaması sonucu bireysel hakların korunması devletin sorumluluğu altına girmiştir devlet bu sorumluluğu nedeniyle mahkemeler kurmuş ve kişilere dava hakkı tanımıştır dava hakkı bir kişinin hak elde etmek veya sahip olduğu hakkın korunmasını temin amacıyla devletin tarafsız ve bağımsız mahkemelerine başvurma hakkını ifade etmektedir kişinin dava hakkını kullanarak mahkemeye başvurması ve devletin hak dağıtmada harekete geçmesini istemesine dava denilmektedir dava medeni yargılama hukukunda taraf sistemi üzerine kurulmuştur davayı açan kişiye davacı kendisine karşı dava açılan kişiye ise davalı denir karşılıklı uyuşmazlığın bulunduğu çekişmeli bir yargıda hakim davalı ve davacı rolünde olan tarafların olup olmadığını göz önünde bulundurur çünkü çekişmeli yargıda davacı ve davalının olması dava şartlarından biridir dava şartları ise davanın açılması ve dava konusu anlaşmazlık hakkında araştırma yapılıp esas hakkında karar verilmesi için gerekli olan şartlardır tarafın belirtilmesi dava şartı olduğu için dava açılırken davalı tarafının gösterilmesi zorunludur dava açılırken davalı taraf gösterilmemiş ise dava dilekçesi reddedilir çünkü mahkemenin belirtilmemiş tarafı araştırma yükümlülüğü yoktur diğer taraftan dava açılırken dava dilekçesinde birden fazla davalı veya birden fazla davacı gösterilebilir mahkemede taraflar eşit hak ve yetkilere sahiptir buna medeni yargılama hukukunda silahların eşitliği denir bu eşitlik davalı ve davacının mutlak anlamdaki eşitliğini değil şekli anlamdaki eşitliğini ifade eder çünkü davada tarafların üstlendikleri roller nedeniyle birçok farklılık bulunur ancak hakim tarafları dinleyerek sonuca ulaşacaktır çekişmeli davada dava şartı olan davalının ve davacının bulunması çekişmesiz yargı için söz konusu değildir medeni yargılama hukukunun bir alt dalı olan çekişmesiz yargı karşılıklı bir uyuşmazlığın olmadığı ve tarafların yer almadığı yargı türüdür bu yargı türünde taraf kavramı yerine ilgili kavramı mevcuttur çekişmesiz yargılamada birden fazla ilgili bulunabilir hatta bu ilgililer farklı iddialar ve taleplerde bulunabilir bu sebeple çekişmesiz yargıda talep birliği olup olmaması önemli değildir", "eşya kavramı hukuk dilinde günlük dilde kullanılan eşya kavramından biraz farklılık gösterir günlük dildeki kavram sıklıkla varlıkların fiziksel özelliklerini ifade etmek için kullanılırken hukukta varlıklara fiziksel özelliklerinin yanında işlevsel bir anlam da yüklemektedir hukukta herhangi bir varlığın eşya olarak kabul edilebilmesi için onun sadece fiziki yapısına bakılmaz aynı zamanda ekonomik toplumsal ahlaki işlevine bakılır örneğin tek mısır tanesi hayvanın tek tüyü günlük hayatta fiziksel olarak eşya gibi değerlendirilebilir fakat hukuken bunlar tek başına eşya olarak kabul edilmemektedir çünkü tek mısır tanesinin veya tek hayvan tüyünün insanın herhangi bir ihtiyacını karşılayacak büyüklüğe ekonomik değere veya miktara sahip olduğu iddia edilemez bunların üzerinde bir sanatçının çok küçük boyutlarda işlediği yazı veya resim mevcutsa bu varlıklar hukuken eşya olarak kabul edilecektir bu durumda varlıklarda işlevsel bir farklılığın ortaya çıktığı görülmektedir bu eşyaların sahibi kişilerin bunların sanat eserine dönüştüğünü ekonomik değerlerinin arttığını veya başka eşyalarla değiş tokuş yapılabileceğini iddia edebilecekleri tahmin edilebilir türk medeni kanununda sadece fiziki varlığı olan şeylerin eşya olarak kabul edileceği belirtilmiştir hukuk fiziki varlığı bulunmayan ama ekonomik değeri olan şeyleri de bazı hallerde eşya gibi kabul etmektedir örneğin bazı hakların eşya gibi sayıldığı ve bunların da eşyalarda olduğu gibi satış veya devir konusu olabilmesi mümkündür türk medeni kanununda bir varlığın eşya sayılması için hukuki iradeye elverişli olması gerektiği belirtilmiştir burada kastedilen varlığın yasaklı olmaması gerektiği ve bireysel mülkiyete alınamayacak sınırları olmayan varlıkların eşya olarak sayılamayacağıdır örneğin hukuken satışı yasaklanmış herhangi bir madde ülkenin doğal kaynakları gökyüzü gezegenler eşya hükmünde kabul edilemez bunlar herhangi bir şekilde mülkiyete konu edilemez eşyaların kişisel olmaması kuralına göre insanların vücudu organları ve cesedi eşya olarak kabul edilemez veya bunlar üzerinde herhangi bir hak iddia edilemez insan vücudunun doğal bir parçası haline gelmiş takma organlar da eşya olarak kabul edilemez fakat takma dişe benzer nitelikte vücuttan kolaylıkla çıkarılıp el değiştirebilecek olan protez parçalar insan vücudunun parçası olarak görülmemekte ve eşya olarak sayılmaktadır eşya farklı ölçütler içinde değerlendirilip farklı türlerde ele alınmaktadır", "normatif sistem olarak da anılan tescil sistemine göre tüzel kişiliğin kişilik kazanma anı tüzel kişinin kurulması için gerekli olan koşulun yetkili makam tarafından incelenme sonrasıdır yetkili makam tarafından yapılan inceleme sonucunda kuruluş şartlarının yerine getirildiğinin tespit edilmesi halinde tüzel kişiliğe izin çıkar örneğin türk hukukuna göre vakıflar tescil sistemi ile kurulur tüzel kişiliği kurmak isteyen kişilerin herhangi yetkili bir makamdan izin almasına gerek olmayan sistem ise serbest kuruluş sistemi olarak anılır bu sistemde tüzel kişiliğin kazanılması için gerekli olan koşullar mevzuat tarafından daha önceden belirlenmiştir mevzuat tarafından belirlenmiş olan koşulların yerine getirilip getirilmediği herhangi bir makam kontrolünden geçmez bu sebeple serbest kuruluş sisteminde mevzuat tarafından belirlenmiş koşullar yerine getirildiği anda tüzel kişilik kazanılmış olur örneğin siyasi partiler sendikalar ve dernekler serbest kuruluş esasına dayanır tüzel kişiliğin kazanılma anı kadar tüzel kişiliğin sona erme anı da önemlidir çünkü tüzel kişiliğin fiil ehliyetinin veya hak ehliyetinin sona ermesi ancak tüzel kişiliğin son bulmasıyla mümkündür tüzel kişiliğin sonlanması tüzel kişiliğin sona erme nedenlerine göre belirlenir medeni kanunun ve diğer kanunların ilgili hükümlerine göre tüzel kişiliğin sonlanması üç şekilde olmaktadır bunlar kendiliğinden sona erme bir iradeyle sona erme mahkeme kararıyla sona ermedir tüzel kişiliğin kanun veya kuruluş işleminde mevcut belirli nedenlerin gerçekleşmesi sonucu başka işlem veya karara gerek olmadan kanun gereği sona ermesi durumunda tüzel kişilik kendiliğinden sona ermiş kabul edilir infisah veya dağılma olarak ifade edilen durum genellikle tüzel kişiliğin amacını gerçekleştirmesi veya tüzel kişiliğin amacını gerçekleştirmesinin imkansız hale gelmesi durumunda gerçekleşir örneğin belirli süre için kurulmuş tüzel kişiler sürenin dolmasıyla kendiliğinden sona erer tüzel kişiliğin sona erme sebeplerinden diğeriyse fesihtir tüzel kişiliğin iradeyle sona ermesi durumuna örnek olan bu sona erme sebebinde tüzel kişilik yetkili organ veya mahkeme kararı ile sona erebilir yetkili organlardan kasıt ilgili tüzel kişilerin bu konuda karar almaya yetkili organıdır tüzel kişiliği sona erdiren sebeplerden sonuncusu ise mahkeme tarafından verilen karardır kanunda sayılan belirli bir nedenin ortaya çıkmasıyla tüzel kişilik mahkeme kararına dayanılarak sona erdirilebilir", "dünya üzerinde gerçekleşen bütün olumlu gelişmeler yalnızca insanın varlığının devam etmesine yönelik etkilere sahiptir günümüzde meydana gelen gelişmelerin yeniliklerin en önemli etkisi bu unsurların insanın kişiliğini geliştirmeye hizmet etmesi ve kişiliğini korumasıdır hukukta kişi hak ve borçlara sahip olabilen varlıktır kişilik kavramı ise dar anlamda ve geniş anlamda olmak üzere iki farklı şekilde tanımlanmaktadır dar anlamda kişilik ile kişi kavramı eş anlamlıdır geniş anlamda kişilik hak ehliyetini fiil ehliyetini kişilik haklarını ve kişisel hal sicillerini kapsamaktadır kişisel haller kişinin kendine özgü bulunan onu diğer insanlardan ayıran nitelikleridir örneğin kişinin erginliği medeni durumu cinsiyeti gibi unsurlar kişisel haller arasında bulunan ve hukuk düzeni tarafından dikkate alınan niteliklerdir kişinin insan onuruna yaraşır bir hayat sürdürebilmesinin olmazsa olmaz şartı onun maddi manevi ve ekonomik bütünlüğü ile kendi varlıkları üzerinde sahip olduğu mutlak haktır kişilik hakkı parayla ölçülemeyen vazgeçilemeyen başkasına devredilmeyen ve mirasçılara geçmeyen bir haktır örneğin bir kişinin şeref ve haysiyeti özgürlüğü aile içi sırları fikri faaliyetleri adı şöhreti gibi unsurlar kişilik hakkı kapsamında olup başkalarına devredilemez niteliktedir kişilik haklarının vazgeçilemez ve devredilemez haklar olduğu medeni kanunun ilgili maddesinde kimse hak ve fiil ehliyetlerinden kısmen de olsa vazgeçemez kimse özgürlüklerinden vazgeçemez veya onları hukuka ya da ahlaka aykırı olarak sınırlayamaz ifadesi ile kesin olarak belirtilmiştir bahsi geçen maddede kişilik haklarının devredilemez nitelikte olduğu vurgulanmış ise de hangi unsurların kişilik hakkı içerisinde yer aldığı açık bir şekilde belirtilmemiştir bu unsurların belirtilmemesinin sebebi insan varlığını oluşturan ve insanın sırf insan olduğu için sahip olduğu değerleri bir bütün olarak belirtmenin zor olmasıdır bir diğer sebep ise sınırsız sayıda olan kişilik haklarının kanun ile sınırlandırılmasının kişilik haklarına doğrudan zarar verecek bir durum olmasıdır hukukta kişilik hakları konusunda sınırlı sayı ilkesi geçerli değildir medeni kanunda sayılmamış ise de hukuk bilimciler kişilik haklarını maddi haklar manevi haklar mesleki haklar ekonomik haklar gibi farklı kategorilerde incelemektedir maddi haklar kişinin vücut bütünlüğüne yönelik hakları iken manevi haklar kişinin onuru ve saygınlığına yönelik haklarıdır", "hukukta önemli olgulardan biri hak sahibi olmak olup bunu ispat ederek ortaya çıkarabilmek aynı derecede önemlidir gerçekte hak sahibi olan birçok kişinin ispat kurallarına dikkat etmemesinden kaynaklı hakkını ispat edemediği bunun sonucunda mağdur olduğu çok fazla örnek bulunmaktadır dolasıyla hak kazanılırken ve kullanılırken ileride durumun nasıl ispat edileceği düşünülmelidir bir hukuki uyuşmazlıkta taraflar her türlü delille hakkını ispat edebilir medeni kanun bu ispat araçlarından resmi belgelere özel bir önem yüklemiştir medeni kanunun ilgili maddesinde kanunda aksine bir hüküm bulunmadıkça taraflardan her biri hakkını dayandırdıkları olguların varlığını ispatla yükümlüdür ifadesi ile iddia edenin ispat etmekle yükümlü olduğu belirtilmiştir bir kişi birisinden alacağı olduğunu iddia ediyorsa bu durumu kişinin ispat etmesi gerekmektedir borçlunun borçlu olmadığını ispat etmesi gerekmez hukuken haklı olduğunu savunan ve tartışma başlatan taraf hakkının dayandığı olayları olguları ispat etmek zorundadır buna karşın diğer taraf da karşı ispat hakkını kullanmakta serbesttir burada önemli olan tartışmayı başlatanın yani haklı olduğunu iddia edenin ispatla yükümlü olmasıdır örneğin evlilik birliğinin temelinden sarsılması iddiasıyla dava açan yani hukuken tartışmayı başlatan davacı eş bu evliliğin ne şekilde sarsıldığını ispat etmek zorundadır diğer eşin evliliğin sarsılmadığını ispat etme yükümlülüğü bulunmamaktadır ancak taraflar kendi iddialarını ispat etme hakkına sahiptir toplum yaşamının daha rahat ve güvenli hale gelmesi hukuk kurallarıyla oldukça ilgilidir bunun için kanunlar bazı kurallara istisnalar getirerek insanların hukuki ilişkilerini kolaylaştırmak ister ispat yüküyle ilgili kural iddia edenin ispat etmesi olduğu halde bazı durumlarda kanun olağan genel doğruları hukuken doğru olarak varsaymaktadır hukuken doğruluğu kabul edilen bu türden varsayımlara karine denir örneğin medeni kanuna göre yaş küçüklüğü akıl hastalığı akıl zayıflığı sarhoşluk ya da bunlara benzer sebeplerden biriyle akla uygun biçimde davranma yeteneğinden yoksun olmayan herkes kanuna göre ayırt etme gücüne sahiptir buna göre medeni kanunda sıralanan durumların dışında kalan herkesin ayırt etme gücüne sahip olduğu karinesi benimsenmiştir dolayısıyla birinin ayırt etme gücünün olmadığını düşünen kişi bunu ispat etmelidir", "kamu gücüne ve otoritesine sahip olan çeşitli devlet kurumları ve kuruluşlarının bu otoriteye tabi kişilerle veya birbirleriyle olan ilişkilerini düzenleyen hukuk kurallarına kamu hukuku denir insanların ve oluşturdukları toplulukların eşit şarta ve yetkilere tabi özgür kimseler olarak kendi aralarındaki ilişkilerini düzenleyen hukuk kuralları ise özel hukuk olarak tanımlanmaktadır kamu hukukunun en temel niteliği bu hukuk alanına giren ilişkilerde tarafların eşit olmaması kamu yararının temsilcisi konumundaki devletin ve diğer kamu tüzel kişilerinin üstün konumda bulunmasıdır bu konumları onlara tek taraflı olarak ilişkinin kapsamını ve içeriğini belirleme imkanı vermektedir özel hukuku karma hukuk ve kamu hukukundan ayrıştıran en önemli özellik bu alandaki hukuk ilişkilerinin eşitlik ve irade serbestisi ilkesine dayanmasıdır hukukta asıl olan bireylerin özgürlüklerinin ve haklarının güvence altına alınmasıdır kamu hukuku özel hukukun hizmetinde ve onun üzerinde koruyucu olmalıdır tarihsel açıdan bakıldığında anayasa hukuku idare hukuku ve ceza hukukunun da birey hak ve özgürlüklerini korumak üzere geliştirildikleri görülmektedir anayasal metinler yöneticilerin siviller üzerindeki baskılarını sınırlandırma bunu en aza indirme mücadelelerinin sonucudur aslında kamu hukukunun da karma hukukun ve özel hukukun da asıl gayesi birey hak ve özgürlüklerini korumaktır günümüzde özel hukuk ve kamu hukuku bundan dolayı gittikçe birbirine daha çok yaklaşmaktadır fakat bu açıdan bakılsa da gerek kamu hukukunun gerekse karma hukukun ve bunların alt dallarının özel hukuktan ayrılmış başlı başına birer hukuk dalı olduğu görülmektedir kişilerin birbirleriyle olan ilişkilerini eşitlik ve irade serbestisi ilkesi doğrultusunda düzenleyen özel hukuk kuralları konuları ve özellikleri itibarıyla birbirinden oldukça farklıdır yıllar içerisinde toplumsal hayatta iletişimde teknolojide meydana gelen değişimler birçok yeni hukuki problemleri de beraberinde getirmiştir bu karmaşık hukuk ilişkilerini sadece özel hukuk olarak tanımlamak yetersiz kalmaya başlamıştır özel hukuk bir üst kavram olarak kalması şartıyla kendi içinde çeşitli dallara ayrılmıştır örneğin daha öncesinde medeni hukukun parçası olan borçlar hukuku şimdilerde başlı başına hukukun dalı haline gelmiştir önceden özel hukuk içinde sayılan fikir hukuku artık karma hukuk içinde sayılmaktadır özel hukukun alt dalları farklı kaynaklarda farklı şekilde sayılabilmektedir", "bilgi akışını sağlayan yazılı sesli veya görsel araçlara kitle iletişim araçları denir bu akış bireyden çoğula veya çoğuldan bireye doğrudur kitle iletişim araçlarının belirleyici özelliği bir mesajı aynı anda çok sayıda kişiye ulaştırmasıdır ülkemizde sıklıkla kullanılan kitle iletişim araçlarının başında televizyon gelir televizyonun hemen hemen herkesin evinde bulunması ücretsiz olması ve her kitleye hitap etmesi bunun ana nedenleri arasındadır herhangi bir toplumsal sorunun çözümünde toplumun geneline ulaşmak onları mevcut sorun hakkında yüz yüze bilgilendirmek oldukça zordur ancak kitle iletişim araçlarını kullanarak çok sayıda insana ulaşmak onları bilgilendirmek ve onların görüşlerini almak daha kolaydır kitle iletişim araçları bu kolaylığının yanı sıra kitleyi olumsuz etkileme ve yönlendirme gibi özelliklere de sahiptir kitle iletişim araçları yapısal özellikleri nedeniyle farklı kitleler tarafından tercih edilmektedir örneğin gazete tek başına ve tüketicinin genel veya özel düşünceleri duyguları ve davranışlarında ölçü olarak değerlendirdiği gruplara danışılmadan hızlı okunan kitle iletişim aracıdır gazete günlük haberleri gelişmeleri öğrenmek için alınır gazetenin bir kere okunması yeterlidir ancak anlaşılmayan konular olunca tekrar okuma şansı vardır dergi evlerde iş yerlerinde bir haftadan daha uzun süre durabilir dergi birkaç kere okunabilir çünkü dergide yazılanlar defalarca okunabilir ve referans gruplarıyla tartışılabilir dergiler özellikle belli konularda ayrıntılı araştırmaları içerdiği için başvuru aracı olarak kullanılabilir radyo ise gazete ve dergiden çok daha farklı bir kitle iletişim aracıdır radyoda sade açık ve tekrarlanan bir metin ses yoluyla kitleye ulaştırılır metnin içeriği ve ses tonlaması gibi özellikler kitle üzerinde etkili rol oynar ama sesli iletilerin hızlı unutulma riskleri vardır televizyonda hareketli görüntü ve ses vardır ancak televizyon görüntüsü yanılsamadır gerçekte görüntü yoktur küçük noktaların yoğunluklarıyla oluşan resim insan zihninde önceden tanımlanan bilgilerle çakıştırılır ve bu bilgiler algılanıp anlam kazanır yarım görüntülerin diğer yarısını zihin tamamlar zihin mekanik olarak çalışır ancak gazete okurken olduğu gibi kod çözmeyle uğraşmaz eskiden izleyicinin anında çözümleme yapması gerekirken yeni teknoloji ile artık televizyon yayınları internet üzerinden izlenip kayıt edilebilmektedir", "ayırt etme gücüne sahip ve ergin olup kısıtlı olmayan kişiler tam ehliyetliler grubuna girer tam ehliyetliler hiçbir izne gerek olmaksızın kendi iradeleriyle hukuki işlemleri gerçekleştirebilirler borç altına girebilirler yaptıkları hukuka aykırı hareketlerden de sorumlu olacaklardır kendi haklarını korumak için dava açabilirler ayırt etme gücüne sahip olmayan herkes tam ehliyetsizdir ayırt etme gücüne sahip olmayan kişinin kısıtlı olup olmadığına veya ergin olup olmadığına bakılmaksızın tam ehliyetsiz olduğu söylenebilir doğruyla yanlışı ayırt edebilecek zeka seviyesine sahip olmayan kişilere üç yaşındaki çocuk veya elli yaşındaki akıl hastası örnek olarak verilebilir tam ehliyetsizler fiil ehliyetine sahip değillerdir tam ehliyetsiz kişiler ayırt etme gücüne sahip olmadıklarından dolayı evlenemezler ayrıca tam ehliyetsizler hukuki işlem yapamazlar bu yaptıkları hukuki işlem geçersiz sayılır bu kişilerin hukuki işlemlerini anne babası veya ayırt etme gücü olmayanlara hukuki işlemlerde onları temsil etmek ve menfaatlerini korumak için mahkeme tarafından atanan yasal temsilciler yürütür ancak mahkemece atanan vasiler tam ehliyetsiz kişiler adına bazı hukuki işlemleri yapamazlar bu işlemlere örnek vermek gerekirse kefil olmak vakıf kurmak ve bağış yapmaktır tam ehliyetsiz sayılan akıl hastaları başkalarının malına verdiği zarardan sorumlu olmazlar yaptıklarından dolayı bu kişilere ceza verilemez ancak akıl hastalarının kusursuz sorumluluğu söz konusu olabilir yani başkalarının malına zarar veren akıl hastasının ekonomik durumunun iyi olması halinde mahkeme tarafından sebep olduğu zararları ödemesine hükmedilebilir ancak ceza verilemez normalde tam ehliyetliler bazen dış etkenlerle tam ehliyetsiz hale gelebilir buna sarhoşluk örnek verilebilir kişi sarhoşken ayırt etme gücüne sahip olmayacağından dolayı tam ehliyetsizdir iradeleriyle sarhoş olan kişiler ayırt etme gücüne sahip olmasalar bile yaptıkları hukuka aykırı eylemlerden dolayı sorumludurlar örneğin kişi kendi iradesiyle sarhoş olup başkasının arabasına zarar vermesi halinde hem ceza almak hem de verdiği zararın karşılığını ödemek zorunda kalır kişi kendi iradesi dışında sarhoş olduğunu ispatlarsa ceza yaptırımı uygulanmaz sınırlı ehliyetli tam ehliyetli şartlarını taşıdığı halde ehliyeti sınırlanan kimsedir ayırt etme gücüne sahip ve ergin olup kısıtlı olmayan kişiler yani tam ehliyetli şartlarını taşıyıp da kendilerine yasal danışman atanan kişilerdir", "hak kavramı hukukla ilgili temel kavramlardan biridir adalet ve hukuka uygunluk anlamlarına gelen hak kelimesi arapça hukuk kelimesinin tekil halidir verilmiş bir emekten dolayı maddi ve manevi yetkidir hak yasalar ve anlaşmaların insana tanıdığı yetkilerin toplamıdır kişiler haklarını kullanıp kullanmama iradesine sahiptirler bir hakkın kullanımı ise medeni kanunda belirtildiği üzere dürüstlük ilkesi dahilinde olmalıdır hak sahipleri özel veya tüzel kişiler olabilir sağ olarak doğmak koşuluyla ana rahmine ilk düştüğü andan itibaren insanlar hak ehliyetini kazanırlar haklar kanunlarla düzenlenerek koruma altına alınırlar haklar aslında hukuk kurallarına dayanır toplum içinde yaşayan herkesin üstlenmesi gereken belli başlı rolleri bulunur aynı zamanda devletler ve uluslararası kuruluşlar tarafından güvence altına alınan haklar da bulunmaktadır din ve vicdan hürriyeti düşünce hürriyeti özel hayatın gizliliği hakları sahip olduğumuz haklardandır kişilerin hukuk düzeni tarafından korunan menfaatlerini ifade eden hak kavramı hukuk kavramı ile birleşiktir bilimsel bir disiplin sistemi olarak hukuk kişiler arası ilişkileri kişiler ile devlet veya devleti oluşturan kurumlar arası ilişkileri ve devlet ile devletler arası ilişkileri düzenleyen kurallar bütünüdür hukuk kişilere yetki verebileceği gibi yaptırım da uygulayabilir ceza yaptırımı yasaya ve kurala aykırı davranılması halinde hukuk düzenince öngörülen sonuçtur yaptırımın amacı ise kişilerin hukuka uygun davranmasını sağlamak ve toplumsal düzene aykırı davranışın meydana getirdiği olumsuz sonuçları önlemektir örneğin trafikte kırmızı ışıkta durması gereken bir aracın yoluna devam etmesi halinde aracı kullanan kişiye ve araç sahibine trafik cezası yaptırımı uygulanması borcunu zamanında ödemeyen kişinin malına hukuki yollarla el konularak alacaklıya hakkın verilmesi bir mala zarar veren kişiye bu malın değerinin ödettirilmesi gibi hukuk sisteminin en önemli özelliği yasaların açık anlaşılır ve kesin olmasıdır yazının icat edilmesinden sonra bütün yasalar yazılı hale getirilmiştir yasal kurallar sistemli şekilde toplanmış açıklık ve kesinlik kazanarak kolayca başvurulacak kaynak haline getirilmiştir hukuk gelişirken birtakım esaslar üzerinde durulur bütün hukuk kurallarının amacı kendine yapılmasını istemediğin bir şeyi başkasına da yapmamak üzerine kuruludur zaten insanlar huzur ve güven içinde yaşamak için hukuka ihtiyaç duymuşlardır ve hukuk herkes için vardır"];
+
+/* ===== DURUM ===== */
+const DEFAULT_LABEL = `Hukuk metinleri (${window.KATIP_TEXTS.length} metin)`;
+let customWords = null;          // kullanıcı .txt yüklerse dolu
+let customLabel = '';
+let chosenText = 'all';          // 'all' | index
+let orderMode = 'sirali';        // 'sirali' | 'karisik'
+let diffMode = 'kademeli';       // 'kademeli' | 'sabit'
+
+/* kelime akışı kaynağı */
+let wordQueue = [];              // sıraya dizilmiş kelimeler
+let queuePos = 0;
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth; H=window.innerHeight;
+  canvas.width=W*DPR; canvas.height=H*DPR;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize',resize); resize();
+
+const stars=Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,z:Math.random()*0.8+0.2,r:Math.random()*1.3+0.2}));
+
+let enemies=[],bullets=[],particles=[],locked=null;
+let running=false,paused=false;
+let lives,kills,level,spawnTimer,spawnInterval,baseSpeed;
+let correctChars,totalCharsTyped,startTime;
+let killsThisLevel,killsPerLevel;
+const ship={x:0,y:0};
+
+/* ---- kelime kuyruğu kurulumu ---- */
+function buildQueue(){
+  let pool=[];
+  if(customWords){
+    pool = customWords.slice();
+  } else {
+    const texts = window.KATIP_TEXTS;
+    if(chosenText==='all'){
+      texts.forEach(t=> pool.push(...t.split(/\s+/)));
+    } else {
+      pool = texts[+chosenText].split(/\s+/);
+    }
+  }
+  pool = pool.map(w=>w.trim().toLocaleLowerCase('tr-TR')).filter(w=>w.length>=2 && w.length<=24);
+  if(orderMode==='karisik'){
+    for(let i=pool.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[pool[i],pool[j]]=[pool[j],pool[i]];}
+  }
+  wordQueue=pool; queuePos=0;
+}
+function nextWord(){
+  if(wordQueue.length===0) return 'metin';
+  const w=wordQueue[queuePos % wordQueue.length];
+  queuePos++;
+  return w;
+}
+
+function makeEnemy(){
+  const word=nextWord();
+  const margin=70;
+  const x=margin+Math.random()*(W-margin*2);
+  const speed=baseSpeed*(0.82+Math.random()*0.45);
+  return {word,typed:0,x,y:-20,speed,wob:Math.random()*Math.PI*2};
+}
+
+function resetGame(){
+  buildQueue();
+  enemies=[];bullets=[];particles=[];locked=null;
+  lives=3;kills=0;level=1;killsThisLevel=0;killsPerLevel=8;
+  baseSpeed=26;spawnInterval=1.7;spawnTimer=0.6;
+  correctChars=0;totalCharsTyped=0;startTime=performance.now();
+  ship.x=W/2;ship.y=H-70;
+}
+function levelUp(){
+  level++;killsThisLevel=0;
+  if(diffMode==='kademeli'){
+    baseSpeed*=1.13;
+    spawnInterval=Math.max(0.6,spawnInterval*0.91);
+    killsPerLevel=Math.min(16,killsPerLevel+1);
+  }
+  flashMeter();
+}
+
+/* ---- girdi ---- */
+function handleChar(ch){
+  if(!running||paused) return;
+  ch=ch.toLocaleLowerCase('tr-TR');
+  if(!locked){
+    let cand=null;
+    for(const e of enemies){
+      if(e.word[e.typed]===ch){ if(!cand||e.y>cand.y) cand=e; }
+    }
+    if(cand){locked=cand;}
+    else{totalCharsTyped++;return;}
+  }
+  totalCharsTyped++;
+  if(locked.word[locked.typed]===ch){
+    correctChars++;
+    fireAt(locked);
+    locked.typed++;
+    if(locked.typed>=locked.word.length){destroyEnemy(locked);locked=null;}
+  }
+}
+function fireAt(e){bullets.push({x:ship.x,y:ship.y,t:0,target:e});}
+function destroyEnemy(e){
+  for(let i=0;i<18;i++){const a=Math.random()*Math.PI*2,s=Math.random()*3+1;
+    particles.push({x:e.x,y:e.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c:'52,245,197'});}
+  enemies=enemies.filter(x=>x!==e);
+  kills++;killsThisLevel++;
+  if(killsThisLevel>=killsPerLevel) levelUp();
+}
+function loseLife(e){
+  for(let i=0;i<22;i++){const a=Math.random()*Math.PI*2,s=Math.random()*4+1;
+    particles.push({x:e.x,y:ship.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c:'255,77,109'});}
+  enemies=enemies.filter(x=>x!==e);
+  if(locked===e) locked=null;
+  lives--; if(lives<=0) endGame();
+}
+document.addEventListener('keydown',(ev)=>{
+  if(ev.key==='Escape'&&running){togglePause();return;}
+  if(!running||paused) return;
+  if(ev.key.length===1&&!ev.ctrlKey&&!ev.metaKey&&!ev.altKey){
+    if(/[\wçğıöşüÇĞİÖŞÜ]/.test(ev.key)){handleChar(ev.key);ev.preventDefault();}
+  }
+});
+
+/* ---- döngü ---- */
+let lastT=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(now-lastT)/1000)||0; lastT=now;
+  if(running&&!paused) update(dt);
+  render();
+}
+function update(dt){
+  spawnTimer-=dt;
+  if(spawnTimer<=0){enemies.push(makeEnemy());spawnTimer=spawnInterval*(0.7+Math.random()*0.6);}
+  for(const e of enemies){e.y+=e.speed*dt;e.wob+=dt*2;if(e.y>H-96) loseLife(e);}
+  for(const b of bullets){b.t+=dt*4;b.x=b.x+(b.target.x-b.x)*Math.min(1,b.t);b.y=b.y+(b.target.y-b.y)*Math.min(1,b.t);}
+  bullets=bullets.filter(b=>b.t<1);
+  for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life-=dt*1.8;}
+  particles=particles.filter(p=>p.life>0);
+  updateHUD();
+}
+function render(){
+  ctx.clearRect(0,0,W,H);
+  for(const s of stars){s.y+=s.z*0.25;if(s.y>H){s.y=0;s.x=Math.random()*W;}
+    ctx.globalAlpha=s.z;ctx.fillStyle='#9fb4e8';ctx.fillRect(s.x,s.y,s.r,s.r);}
+  ctx.globalAlpha=1;
+  ctx.strokeStyle='rgba(255,77,109,0.15)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,H-96);ctx.lineTo(W,H-96);ctx.stroke();
+  for(const b of bullets){
+    ctx.fillStyle='#34f5c5';ctx.shadowColor='#34f5c5';ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(b.x,b.y,3,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+  }
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const e of enemies){
+    const ex=e.x+Math.sin(e.wob)*4;const isLock=e===locked;
+    ctx.save();ctx.translate(ex,e.y);
+    ctx.fillStyle=isLock?'rgba(52,245,197,0.18)':'rgba(138,160,212,0.12)';
+    ctx.strokeStyle=isLock?'#34f5c5':'rgba(138,160,212,0.4)';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(0,-13);ctx.lineTo(11,9);ctx.lineTo(0,4);ctx.lineTo(-11,9);
+    ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    ctx.font='600 16px "Space Mono", monospace';
+    const done=e.word.slice(0,e.typed),rest=e.word.slice(e.typed);
+    const wDone=ctx.measureText(done).width,wRest=ctx.measureText(rest).width;
+    const total=wDone+wRest,startX=ex-total/2,ty=e.y+26;
+    ctx.fillStyle='rgba(6,9,20,0.7)';ctx.fillRect(startX-6,ty-11,total+12,22);
+    ctx.textAlign='left';
+    ctx.fillStyle='#ffb347';ctx.fillText(done,startX,ty);
+    ctx.fillStyle=isLock?'#34f5c5':'#d7e3ff';ctx.fillText(rest,startX+wDone,ty);
+    ctx.textAlign='center';
+  }
+  ctx.save();ctx.translate(ship.x,ship.y);
+  ctx.fillStyle='#34f5c5';ctx.shadowColor='#34f5c5';ctx.shadowBlur=16;
+  ctx.beginPath();ctx.moveTo(0,-16);ctx.lineTo(13,14);ctx.lineTo(0,7);ctx.lineTo(-13,14);
+  ctx.closePath();ctx.fill();ctx.shadowBlur=0;ctx.restore();
+  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=`rgb(${p.c})`;ctx.fillRect(p.x,p.y,2.5,2.5);}
+  ctx.globalAlpha=1;
+}
+function updateHUD(){
+  document.getElementById('hudScore').textContent=kills;
+  document.getElementById('hudLives').textContent='♥'.repeat(Math.max(0,lives))+'·'.repeat(Math.max(0,3-lives));
+  const mins=(performance.now()-startTime)/60000;
+  document.getElementById('hudWpm').textContent=mins>0?Math.round((correctChars/5)/mins):0;
+  const acc=totalCharsTyped>0?Math.round((correctChars/totalCharsTyped)*100):100;
+  document.getElementById('hudAcc').textContent=acc+'%';
+  document.getElementById('meterLabel').textContent=`KADEME ${level} · İMHA ${killsThisLevel}/${killsPerLevel}`;
+  document.getElementById('meterFill').style.width=Math.min(100,(killsThisLevel/killsPerLevel)*100)+'%';
+}
+let meterFlash=null;
+function flashMeter(){
+  const el=document.getElementById('meterFill');el.style.background='#ffb347';
+  clearTimeout(meterFlash);meterFlash=setTimeout(()=>el.style.background='',250);
+}
+
+/* ---- akış ---- */
+function startGame(){
+  resetGame();running=true;paused=false;
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+  document.getElementById('hud').style.visibility='visible';
+  document.getElementById('meter').style.visibility='visible';
+  document.getElementById('lockHint').style.visibility='visible';
+}
+function togglePause(){paused=!paused;document.getElementById('pauseScreen').classList.toggle('hidden',!paused);}
+document.getElementById('resumeBtn').onclick=()=>togglePause();
+
+function endGame(){
+  running=false;
+  const mins=(performance.now()-startTime)/60000;
+  const wpm=mins>0?Math.round((correctChars/5)/mins):0;
+  const acc=totalCharsTyped>0?Math.round((correctChars/totalCharsTyped)*100):100;
+  document.getElementById('rWpm').textContent=wpm;
+  document.getElementById('rAcc').innerHTML=acc+'<small>%</small>';
+  document.getElementById('rKills').textContent=kills;
+  document.getElementById('rLevel').textContent=level;
+  let v;
+  if(wpm>=45&&acc>=95) v='KATİP ADAYI · MÜKEMMEL';
+  else if(wpm>=30&&acc>=90) v='GÜÇLÜ · SINAVA HAZIR';
+  else if(wpm>=20) v='GELİŞİYOR · TALİME DEVAM';
+  else v='BAŞLANGIÇ · TEMPO ARTMALI';
+  document.getElementById('verdict').textContent=v;
+  document.getElementById('hud').style.visibility='hidden';
+  document.getElementById('meter').style.visibility='hidden';
+  document.getElementById('lockHint').style.visibility='hidden';
+  document.getElementById('endScreen').classList.remove('hidden');
+}
+
+/* ---- metin seçimi dropdown ---- */
+function populateSelect(){
+  const sel=document.getElementById('textSelect');
+  sel.innerHTML='';
+  const optAll=document.createElement('option');
+  optAll.value='all';optAll.textContent=`Tüm metinler sırayla (${window.KATIP_TEXTS.length})`;
+  sel.appendChild(optAll);
+  window.KATIP_TEXTS.forEach((t,i)=>{
+    const o=document.createElement('option');
+    o.value=String(i);
+    const preview=t.split(/\s+/).slice(0,5).join(' ');
+    o.textContent=`Metin ${i+1} — ${preview}…`;
+    sel.appendChild(o);
+  });
+  sel.value='all';
+  sel.onchange=()=>{chosenText=sel.value;};
+}
+populateSelect();
+
+/* ---- .txt yükleme ---- */
+const fileInput=document.getElementById('fileInput');
+const drop=document.getElementById('drop');
+fileInput.addEventListener('change',e=>{const f=e.target.files[0];if(f)readFile(f);});
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)readFile(f);});
+function readFile(f){
+  const r=new FileReader();
+  r.onload=()=>{
+    const list=r.result.split(/[\s,;\n\r\t]+/).filter(Boolean);
+    const cleaned=list.filter(w=>w.trim().length>=2);
+    if(cleaned.length<4){alert('En az 4 geçerli kelime gerekli.');return;}
+    customWords=cleaned;customLabel=f.name;
+    document.getElementById('srcLabel').textContent=`${f.name} (${cleaned.length} kelime)`;
+    document.getElementById('textSelect').disabled=true;
+    document.getElementById('textSelect').style.opacity='0.4';
+  };
+  r.readAsText(f,'utf-8');
+}
+
+/* ---- mod butonları ---- */
+document.querySelectorAll('.order').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.order').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');orderMode=b.dataset.order;
+}));
+document.querySelectorAll('.diff').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.diff').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');diffMode=b.dataset.diff;
+}));
+
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('againBtn').onclick=startGame;
+document.getElementById('menuBtn').onclick=()=>{
+  document.getElementById('endScreen').classList.add('hidden');
+  document.getElementById('startScreen').classList.remove('hidden');
+};
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
