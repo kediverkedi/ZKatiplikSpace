@@ -220,6 +220,19 @@
     letter-spacing: 0.2em; color: var(--dim); animation: pulse 1.4s ease-in-out infinite;
   }
   @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+  .cel-countdown {
+    margin-top: 20px; height: clamp(70px, 16vw, 120px);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Chakra Petch', sans-serif; font-weight: 700;
+    font-size: clamp(56px, 14vw, 104px); line-height: 1; color: var(--plasma);
+    text-shadow: 0 0 36px rgba(52,245,197,0.7), 0 2px 16px rgba(0,0,0,0.8);
+  }
+  .cel-countdown.pop { animation: cdpop 0.45s ease-out; }
+  @keyframes cdpop {
+    0% { transform: scale(2.0); opacity: 0; }
+    35% { transform: scale(0.92); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
 
   .screen.finale { background: rgba(6,9,20,0.55); }
   .screen.finale .results-grid { margin-top: 24px; }
@@ -326,6 +339,10 @@
           <span class="hud-value" id="hudAcc">100%</span>
         </div>
         <div class="hud-block right">
+          <span class="hud-label">Atlama</span>
+          <span class="hud-value" id="hudSkips">22</span>
+        </div>
+        <div class="hud-block right">
           <span class="hud-label">Can</span>
           <span class="hud-value warn" id="hudLives">♥♥♥</span>
         </div>
@@ -339,7 +356,7 @@
   </div>
 
   <div class="lock-hint" id="lockHint" style="visibility:hidden">
-    İlk harfe bas → kilitle · harfleri yaz → ateş et · kelime bitince <b>SPACE</b> ile patlat
+    Yaz → ateş et · yanlışta <b>⌫</b> ile düzelt · kelime bitince <b>SPACE</b> patlat · yarımken <b>SPACE</b> atlar (metin başı 22)
   </div>
 
   <!-- START -->
@@ -410,13 +427,13 @@
   <!-- METİN TAMAMLAMA KUTLAMASI -->
   <div class="screen celebrate hidden" id="celebrateScreen">
     <div class="cel-burst">🎆</div>
-    <div class="cel-title" id="celTitle">METİN 1 TAMAMLANDI</div>
+    <div class="cel-title" id="celTitle">METİN TAMAMLANDI</div>
     <div class="cel-stats">
       <span>WPM <b id="celWpm">0</b></span>
       <span>İSABET <b id="celAcc">0%</b></span>
     </div>
-    <div class="cel-next" id="celNext">SIRADAKİ: METİN 2</div>
-    <div class="cel-go">Devam etmek için bir tuşa bas →</div>
+    <div class="cel-next" id="celNext">1 / 30 metin bitti</div>
+    <div class="cel-countdown" id="celCountdown"></div>
   </div>
 
   <!-- FİNAL (tüm metinler bitti) -->
@@ -540,6 +557,7 @@ function demandWpm(){
   if(diffMode==='sabit') return TUNE.fixedDemandWpm;
   return Math.min(TUNE.maxDemandWpm, TUNE.startDemandWpm+(level-1)*TUNE.wpmPerLevel);
 }
+const SKIP_LIMIT=22;   // metin başına atlama hakkı (gerçek sınav kuralı)
 function currentSpawnInterval(){
   const cps=demandWpm()*5/60;       // saniyede karakter
   return TUNE.avgWord/cps;          // bir kelimelik doğma aralığı
@@ -564,6 +582,7 @@ function buildRun(){
     src=[customWords.slice()];                                  // yüklenen .txt tek "metin"
   } else if(chosenText==='all'){
     src=window.KATIP_TEXTS.map(t=>t.split(/\s+/));              // 30 metin ayrı ayrı
+    shuffle(src);                                               // METİN SIRASINI karıştır → her sınav farklı metinden başlar, rastgele ilerler
   } else {
     src=[window.KATIP_TEXTS[+chosenText].split(/\s+/)];         // tek seçili metin
   }
@@ -599,6 +618,7 @@ function resetGame(){
   enemies=[];bullets=[];particles=[];fw=[];locked=null;
   phase='play';celebrateTimer=0;fwSpawnT=0;
   lives=3;kills=0;level=1;killsThisLevel=0;killsPerLevel=10;
+  skipCount=0;completedChars=0;
   spawnTimer=0.8;
   correctChars=0;totalCharsTyped=0;startTime=performance.now();
   ship.x=W/2;ship.y=H-70;
@@ -609,34 +629,56 @@ function levelUp(){
   flashMeter();
 }
 
+/* bir kelime tamamen yazıldı ve hatasız mı (SPACE bekliyor) */
+function isReady(e){ return e.typed>=e.word.length && !(e.err && e.err.length); }
+
 /* ---- girdi ---- */
 function handleChar(ch){
   if(!running||paused) return;
-  if(locked && locked.ready) return;        // tümü yazıldı, space bekleniyor — harfleri yok say
   ch=ch.toLocaleLowerCase('tr-TR');
   if(!locked){
     let cand=null;
     for(const e of enemies){
-      if(!e.ready && e.word[e.typed]===ch){ if(!cand||e.y>cand.y) cand=e; }
+      if(!isReady(e) && !(e.err&&e.err.length) && e.word[e.typed]===ch){ if(!cand||e.y>cand.y) cand=e; }
     }
     if(cand){locked=cand;}
-    else{totalCharsTyped++;return;}
+    else{totalCharsTyped++;return;}     // hiçbir kelimenin ilk harfiyle eşleşmedi
   }
+  if(isReady(locked)) return;           // tamamlandı, SPACE bekliyor
   totalCharsTyped++;
-  if(locked.word[locked.typed]===ch){
-    correctChars++;
+  if(!(locked.err&&locked.err.length) && locked.word[locked.typed]===ch){
+    correctChars++;                     // doğru harf → ilerle, ateş et
     fireAt(locked);
     locked.typed++;
-    if(locked.typed>=locked.word.length){ locked.ready=true; }  // artık SPACE bekliyor
+  } else {
+    locked.err=(locked.err||'')+ch;     // YANLIŞ harf → tampona ekle, ⌫ gerek
   }
+}
+function handleBackspace(){
+  if(!locked) return;
+  if(locked.err && locked.err.length){ locked.err=locked.err.slice(0,-1); }  // yanlışı sil
 }
 /* SPACE ile kelimeyi bitir → ödüllendirici patlama */
 function completeWord(e){
+  completedChars+=e.word.length;        // net WPM yalnızca tamamlanan kelimeleri sayar
   bigExplosion(e.x, e.y);
   enemies=enemies.filter(x=>x!==e);
   if(locked===e) locked=null;
   kills++; killsThisLevel++;
   if(killsThisLevel>=killsPerLevel) levelUp();
+}
+/* SPACE ile (bitmeden) kelimeyi ATLA — metin başı en çok SKIP_LIMIT */
+function skipWord(e){
+  if(skipCount>=SKIP_LIMIT){ flashSkips(); return; }  // hak doldu → atlama yok, yazmak gerek
+  skipCount++;
+  skipPoof(e.x,e.y);
+  enemies=enemies.filter(x=>x!==e);
+  if(locked===e) locked=null;
+  // SKOR ARTMAZ: kills/killsThisLevel'a dokunulmaz
+}
+function skipPoof(x,y){
+  for(let i=0;i<12;i++){const a=Math.random()*Math.PI*2,s=Math.random()*2+0.5;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c:'138,160,212'});}
 }
 function bigExplosion(x,y){
   const cols=['52,245,197','255,179,71','255,255,255','120,200,255'];
@@ -646,13 +688,6 @@ function bigExplosion(x,y){
     particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c:'52,245,197'});}
 }
 function fireAt(e){bullets.push({x:ship.x,y:ship.y,t:0,target:e});}
-function destroyEnemy(e){
-  for(let i=0;i<18;i++){const a=Math.random()*Math.PI*2,s=Math.random()*3+1;
-    particles.push({x:e.x,y:e.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c:'52,245,197'});}
-  enemies=enemies.filter(x=>x!==e);
-  kills++;killsThisLevel++;
-  if(killsThisLevel>=killsPerLevel) levelUp();
-}
 function loseLife(e){
   for(let i=0;i<22;i++){const a=Math.random()*Math.PI*2,s=Math.random()*4+1;
     particles.push({x:e.x,y:ship.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c:'255,77,109'});}
@@ -662,11 +697,12 @@ function loseLife(e){
 }
 document.addEventListener('keydown',(ev)=>{
   if(enteringName){ handleNameKey(ev); ev.preventDefault(); return; }
-  if(phase==='celebrate'){ endCelebration(); ev.preventDefault(); return; }
+  if(phase==='celebrate'){ ev.preventDefault(); return; }   // geri sayım otomatik akar, tuşlar yutulur
   if(ev.key==='Escape'&&running&&phase==='play'){togglePause();return;}
   if(!running||paused||phase!=='play') return;
-  if(ev.key===' '){                                  // SPACE: hazır kelimeyi patlat
-    if(locked && locked.ready) completeWord(locked);
+  if(ev.key==='Backspace'){ handleBackspace(); ev.preventDefault(); return; }
+  if(ev.key===' '){                       // SPACE: bittiyse patlat, bitmediyse ATLA
+    if(locked){ isReady(locked) ? completeWord(locked) : skipWord(locked); }
     ev.preventDefault(); return;
   }
   if(ev.key.length===1&&!ev.ctrlKey&&!ev.metaKey&&!ev.altKey){
@@ -734,7 +770,22 @@ function updateFireworks(dt){
   }
   for(const p of fw){p.x+=p.vx;p.y+=p.vy;p.vy+=0.045;p.vx*=0.99;p.life-=dt*0.55;}
   fw=fw.filter(p=>p.life>0);
-  if(phase==='celebrate' && celebrateTimer>4.5) endCelebration();
+  if(phase==='celebrate'){
+    // ~1.2sn kutlama, sonra 3 · 2 · 1 · BAŞLA, sonra sonraki metin
+    const t=celebrateTimer;
+    let cd;
+    if(t<1.2) cd='';
+    else if(t<2.2) cd='3';
+    else if(t<3.2) cd='2';
+    else if(t<4.2) cd='1';
+    else cd='BAŞLA';
+    const el=document.getElementById('celCountdown');
+    if(el && el.textContent!==cd){
+      el.textContent=cd;
+      el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');  // her sayıda pop animasyonu
+    }
+    if(t>=4.8) endCelebration();   // "BAŞLA"yı kısa göster, sonra geç
+  }
 }
 
 /* ---- metin geçişi / final ---- */
@@ -750,7 +801,7 @@ function advanceText(){
   }
 }
 function endCelebration(){
-  textIdx++; wordPos=0; textDrained=false;
+  textIdx++; wordPos=0; textDrained=false; skipCount=0;   // yeni metin → atlama hakkı yenilenir (22)
   phase='play'; spawnTimer=0.6;
   document.getElementById('celebrateScreen').classList.add('hidden');
 }
@@ -767,10 +818,13 @@ function render(){
   }
   ctx.textAlign='center';ctx.textBaseline='middle';
   for(const e of enemies){
-    const ex=e.x+Math.sin(e.wob)*4;const isLock=e===locked;const isReady=e.ready;
+    const ex=e.x+Math.sin(e.wob)*4;
+    const isLock=e===locked;
+    const ready=isReady(e);
+    const hasErr=!!(e.err && e.err.length);
     ctx.save();ctx.translate(ex,e.y);
-    ctx.fillStyle=isReady?'rgba(52,245,197,0.3)':isLock?'rgba(52,245,197,0.18)':'rgba(138,160,212,0.12)';
-    ctx.strokeStyle=(isLock||isReady)?'#34f5c5':'rgba(138,160,212,0.4)';ctx.lineWidth=1.4;
+    ctx.fillStyle=hasErr?'rgba(255,77,109,0.22)':ready?'rgba(52,245,197,0.3)':isLock?'rgba(52,245,197,0.18)':'rgba(138,160,212,0.12)';
+    ctx.strokeStyle=hasErr?'#ff4d6d':(isLock||ready)?'#34f5c5':'rgba(138,160,212,0.4)';ctx.lineWidth=1.4;
     ctx.beginPath();ctx.moveTo(0,-13);ctx.lineTo(11,9);ctx.lineTo(0,4);ctx.lineTo(-11,9);
     ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
     ctx.font='600 16px "Space Mono", monospace';
@@ -778,7 +832,20 @@ function render(){
     const wDone=ctx.measureText(done).width,wRest=ctx.measureText(rest).width;
     const total=wDone+wRest,startX=ex-total/2,ty=e.y+26;
     ctx.fillStyle='rgba(6,9,20,0.7)';ctx.fillRect(startX-6,ty-11,total+12,22);
-    if(isReady){
+    if(hasErr){
+      // YANLIŞ harf girildi — kırmızı uyarı, ⌫ ile düzelt ya da SPACE ile atla
+      ctx.textAlign='left';
+      ctx.fillStyle='#ffb347';ctx.fillText(done,startX,ty);
+      ctx.fillStyle='#5d6b94';ctx.fillText(rest,startX+wDone,ty);
+      ctx.textAlign='center';
+      const pulse=0.55+0.45*Math.sin(performance.now()/90);
+      ctx.globalAlpha=pulse;
+      ctx.font='700 9px "Space Mono", monospace';
+      ctx.fillStyle='#ff4d6d';
+      ctx.fillText('✗ '+e.err.toLocaleUpperCase('tr-TR')+'  ⌫ DÜZELT / SPACE ATLA',ex,ty+15);
+      ctx.font='600 16px "Space Mono", monospace';
+      ctx.globalAlpha=1;
+    } else if(ready){
       // tümü yazıldı, SPACE bekliyor — nabız gibi parlak
       const pulse=0.6+0.4*Math.sin(performance.now()/110);
       ctx.textAlign='left';
@@ -819,8 +886,18 @@ function updateHUD(){
   document.getElementById('hudWpm').textContent=mins>0?Math.round((correctChars/5)/mins):0;
   const acc=totalCharsTyped>0?Math.round((correctChars/totalCharsTyped)*100):100;
   document.getElementById('hudAcc').textContent=acc+'%';
+  const left=Math.max(0,SKIP_LIMIT-skipCount);
+  const se=document.getElementById('hudSkips');
+  se.textContent=left;
+  se.classList.toggle('warn', left<=3);
   document.getElementById('meterLabel').textContent=`KADEME ${level} · HEDEF ${demandWpm()} WPM · ${killsThisLevel}/${killsPerLevel}`;
   document.getElementById('meterFill').style.width=Math.min(100,(killsThisLevel/killsPerLevel)*100)+'%';
+}
+let skipFlash=null;
+function flashSkips(){
+  const el=document.getElementById('hudSkips');
+  el.style.color='#ff4d6d';el.style.transform='scale(1.25)';
+  clearTimeout(skipFlash);skipFlash=setTimeout(()=>{el.style.color='';el.style.transform='';},280);
 }
 let meterFlash=null;
 function flashMeter(){
@@ -877,10 +954,11 @@ function liveStats(){
 /* metin tamamlama kutlaması (oyun devam edecek) */
 function showCelebrate(){
   const {wpm,acc}=liveStats();
-  document.getElementById('celTitle').textContent=`METİN ${completedTextNo} TAMAMLANDI`;
-  document.getElementById('celNext').textContent=`SIRADAKİ: METİN ${textIdx+2} / ${runTexts.length}`;
+  document.getElementById('celTitle').textContent='METİN TAMAMLANDI';
+  document.getElementById('celNext').textContent=`${completedTextNo} / ${runTexts.length} metin bitti · sıradaki geliyor`;
   document.getElementById('celWpm').textContent=wpm;
   document.getElementById('celAcc').textContent=acc+'%';
+  document.getElementById('celCountdown').textContent='';
   hidePlayUI();
   document.getElementById('celebrateScreen').classList.remove('hidden');
 }
@@ -995,7 +1073,7 @@ function populateSelect(){
   const sel=document.getElementById('textSelect');
   sel.innerHTML='';
   const optAll=document.createElement('option');
-  optAll.value='all';optAll.textContent=`Tüm metinler sırayla (${window.KATIP_TEXTS.length})`;
+  optAll.value='all';optAll.textContent=`Tüm metinler — rastgele sıra (${window.KATIP_TEXTS.length})`;
   sel.appendChild(optAll);
   window.KATIP_TEXTS.forEach((t,i)=>{
     const o=document.createElement('option');
